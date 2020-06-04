@@ -1,0 +1,23 @@
+[package]
+name = "hypertrie"
+version = "0.1.0"
+authors = ["Matthias Seitz <matthias.seitz@tum.de>"]
+edition = "2018"
+
+[build-dependencies]
+prost-build = "0.6.1"
+
+[dependencies]
+prost = "0.6.1"
+blake2-rfc = "0.2.18"
+sleep-parser = "0.8.0"
+hypercore = { git = "https://github.com/datrs/hypercore", version = "0.11.1-beta.8" }
+random-access-memory = "2.0"
+random-access-disk = "2.0"
+random-access-storage = "4.0"
+sparse-bitfield = "0.11.0"
+async-std = "1.6.0"
+futures = "0.3.5"
+rand = "0.7.3"
+anyhow = "1.0.31"
+hex = "0.4.2"
