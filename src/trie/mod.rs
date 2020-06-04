@@ -51,7 +51,7 @@ where
     discovery_key: [u8; 32],
     version: usize,
     /// This is public key of the content feed
-    metadata: Option<PublicKey>,
+    metadata: Option<Vec<u8>>,
 }
 
 impl<T> HyperTrie<T>
@@ -95,23 +95,19 @@ where
         if self.feed.is_empty() {
             let mut header = proto::Header::default();
             header.r#type = "hypertrie".to_string();
-            header.metadata = self.metadata.map(|pk| pk.as_bytes().to_vec());
+            header.metadata = self.metadata.clone();
         }
 
         unimplemented!()
     }
 
-    pub async fn get_metadata(&mut self) -> anyhow::Result<Option<PublicKey>> {
+    pub async fn get_metadata(&mut self) -> anyhow::Result<Option<Vec<u8>>> {
         let data = self
             .feed
             .get(0)
             .await?
             .ok_or_else(|| anyhow!("No hypertrie header present."))?;
-        if let Some(meta) = proto::Header::decode(&*data)?.metadata {
-            Ok(Some(PublicKey::from_bytes(&meta)?))
-        } else {
-            Ok(None)
-        }
+        Ok(proto::Header::decode(&*data)?.metadata)
     }
 }
 
