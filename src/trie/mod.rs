@@ -2,18 +2,23 @@
 //!Uses a rolling hash array mapped trie to index key/value data on top of a hypercore.
 use crate::discovery_key;
 use crate::hypertrie_proto as proto;
+use crate::trie::node::Node;
+use crate::trie::put::PutOptions;
 use anyhow::anyhow;
 use hypercore::{Feed, PublicKey, SecretKey};
+use lru::LruCache;
 use prost::Message as ProtoMessage;
 use random_access_storage::RandomAccess;
 use std::fmt;
 use std::fmt::Debug;
+use std::hash::Hash;
 
 pub mod batch;
 pub mod delete;
 pub mod diff;
 pub mod get;
 pub mod history;
+pub mod node;
 pub mod put;
 
 struct MountableHyperTrie<T>
@@ -52,6 +57,9 @@ where
     version: usize,
     /// This is public key of the content feed
     metadata: Option<Vec<u8>>,
+    /// cache for seqs
+    // TODO what's the value here? `valueBuffer` from a node?
+    cache: LruCache<u64, Node>,
 }
 
 impl<T> HyperTrie<T>
@@ -79,14 +87,37 @@ where
         // self.checkout(self.version)
     }
 
-    async fn head(self) {}
-
     async fn diff(self) {}
+
     /// Lookup a key. Returns a result node if found or `None` otherwise.
-    async fn get(&self) {}
+    // TODO add options
+    pub async fn get(&mut self, key: &str) -> anyhow::Result<Node> {
+        unimplemented!()
+    }
+
+    pub async fn put_batch(&mut self) {}
 
     /// Insert a value.
-    async fn put(&mut self) {}
+    // TODO add with PutOptions
+    pub async fn put(&mut self, key: impl Into<PutOptions>, value: &[u8]) -> anyhow::Result<()> {
+        let opts = key.into();
+
+        if let Some(head) = self.head().await? {
+        } else {
+        }
+
+        unimplemented!()
+    }
+
+    async fn put_update(&mut self, head: Option<Node>) {
+        if let Some(node) = head {
+            for idx in 0..node.len() {
+                let check_collision = Node::terminator(idx);
+            }
+        }
+    }
+
+    async fn put_finalize(&mut self) {}
 
     /// Delete a key from the database.
     async fn delete(&mut self) {}
@@ -97,7 +128,7 @@ where
             header.r#type = "hypertrie".to_string();
             header.metadata = self.metadata.clone();
         }
-
+        // insert header
         unimplemented!()
     }
 
