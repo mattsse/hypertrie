@@ -140,6 +140,42 @@ where
             .ok_or_else(|| anyhow!("No hypertrie header present."))?;
         Ok(proto::Header::decode(&*data)?.metadata)
     }
+
+    pub async fn get_by_seq(&mut self, seq: u64) -> anyhow::Result<Option<Node>> {
+        if seq == 0 {
+            return Ok(None);
+        }
+        // TODO lookup cached node
+        // TODO clone on cache or cow?
+
+        if let Some(data) = self.feed.get(seq).await? {
+            let node = Node::decode(&data, seq)?;
+            if !node.has_key() && !node.has_value() {
+                // early exit for the key: '' nodes we write to reset the db
+                Ok(None)
+            } else {
+                Ok(Some(node))
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn head(&mut self) -> anyhow::Result<Option<Node>> {
+        Ok(self.get_by_seq(self.head_seq()).await?)
+    }
+
+    fn head_seq(&self) -> u64 {
+        if self.feed.len() < 2 {
+            0
+        } else {
+            self.feed.len() - 1
+        }
+    }
+}
+
+pub struct HypertrieBuilder {
+    cache_size: usize,
 }
 
 // TODO impl watcher: channels or futures::stream::Stream?
@@ -153,5 +189,60 @@ pub enum ValueEncoding {
 impl Default for ValueEncoding {
     fn default() -> Self {
         ValueEncoding::Binary
+    }
+}
+
+struct Trie(pub Vec<Vec<Option<u64>>>);
+
+impl Trie {
+    #[inline]
+    pub fn bucket(&self, idx: usize) -> Option<&Vec<Option<u64>>> {
+        self.0.get(idx)
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(65536);
+        let offset = varinteger::encode(self.len() as u64, &mut buf);
+
+        unimplemented!()
+    }
+
+    pub fn decode(buf: &[u8]) -> anyhow::Result<Self> {
+        let mut len = 0;
+        let mut offset = varinteger::decode(buf, &mut len);
+
+        let mut trie = Vec::with_capacity(len as usize);
+
+        while offset < buf.len() {
+            let mut idx = 0;
+            offset += varinteger::decode_with_offset(buf, offset, &mut idx);
+
+            let mut bitfield = 0;
+            offset += varinteger::decode_with_offset(buf, offset, &mut bitfield);
+
+            let mut bucket = Vec::with_capacity((32 - bitfield.leading_zeros()) as usize);
+
+            while bitfield > 0 {
+                let bit = bitfield & 1;
+
+                if bit != 0 {
+                    let mut val = 0;
+                    offset += varinteger::decode_with_offset(buf, offset, &mut val);
+                    bucket.push(Some(val));
+                } else {
+                    bucket.push(None);
+                }
+
+                bitfield = (bitfield - bit) / 2;
+            }
+            trie.push(bucket);
+        }
+
+        Ok(Trie(trie))
     }
 }
