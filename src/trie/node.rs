@@ -3,6 +3,7 @@ use prost::Message;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
+use crate::trie::Trie;
 
 pub(crate) const HIDDEN_FLAG: u64 = 1;
 
@@ -15,7 +16,7 @@ pub struct Node {
     /// decoded node value from the stored valuebuffer in the node
     value: Option<Vec<u8>>,
     /// decoded trie from the stored triebuffer in the node
-    trie: Option<Vec<u8>>,
+    trie: Option<Trie>,
     /// hashed key
     hash: Vec<u8>,
     /// flags of the stored node
@@ -71,13 +72,12 @@ impl Node {
 
     // TODO add encoding option
     pub(crate) fn encode(self) -> anyhow::Result<proto::Node> {
-        if let Some(ref trie) = self.trie {
-            // TODO encode trie
-        }
         let mut node = proto::Node::default();
+        if let Some(ref trie) = self.trie {
+            node.trie_buffer = Some(trie.encode());
+        }
         node.key = self.key;
         node.value_buffer = self.value;
-        node.trie_buffer = self.trie;
         node.flags = self.flags;
 
         Ok(node)
@@ -88,13 +88,17 @@ impl Node {
         // assumed key is correctly normalized before
         let hash = hash(split_key(&node.key));
 
-        // TODO decode the triebuffer
+        let trie = if let Some(trie) = node.trie_buffer {
+            Some(Trie::decode(&trie)?)
+        } else {
+            None
+        };
 
         Ok(Self {
             seq,
             key: node.key,
             value: node.value_buffer,
-            trie: node.trie_buffer,
+            trie,
             hash,
             flags: node.flags,
         })
@@ -121,7 +125,7 @@ fn normalize_key(key: &str) -> &str {
 }
 
 #[inline]
-fn split_key<'a>(key: &'a str) -> impl Iterator<Item = &'a str> {
+fn split_key(key: &str) -> impl Iterator<Item=&str> {
     key.split('/')
 }
 

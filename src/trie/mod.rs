@@ -192,6 +192,8 @@ impl Default for ValueEncoding {
     }
 }
 
+#[derive(Debug, Clone)]
+// TODO trie should prlby by Vec<Option<Vec<Option<u64>>>>
 struct Trie(pub Vec<Vec<Option<u64>>>);
 
 impl Trie {
@@ -206,10 +208,34 @@ impl Trie {
     }
 
     pub fn encode(&self) -> Vec<u8> {
+        // TODO varint implementation that uses `bytes::buf::Buf`
         let mut buf = Vec::with_capacity(65536);
-        let offset = varinteger::encode(self.len() as u64, &mut buf);
+        let mut offset = varinteger::encode(self.len() as u64, &mut buf);
 
-        unimplemented!()
+        for i in 0..self.len() {
+            if let Some(bucket) = self.bucket(i) {
+                offset += varinteger::encode_with_offset(i as u64, &mut buf, offset);
+
+                let mut bit = 1;
+                let mut bitfield = 0;
+
+                for j in 0..bucket.len() {
+                    if bucket.get(j).cloned().flatten().is_some() {
+                        bitfield |= bit;
+                    }
+                    bit *= 2;
+                }
+
+                offset += varinteger::encode_with_offset(bitfield, &mut buf, offset);
+
+                for j in 0..bucket.len() {
+                    if let Some(seq) = bucket.get(j).cloned().flatten() {
+                        offset += varinteger::encode_with_offset(seq as u64, &mut buf, offset);
+                    }
+                }
+            }
+        }
+        buf[..offset].to_vec()
     }
 
     pub fn decode(buf: &[u8]) -> anyhow::Result<Self> {
