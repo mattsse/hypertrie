@@ -1,9 +1,9 @@
 use crate::hypertrie_proto as proto;
+use crate::trie::Trie;
 use prost::Message;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
-use crate::trie::Trie;
 
 pub(crate) const HIDDEN_FLAG: u64 = 1;
 
@@ -16,7 +16,7 @@ pub struct Node {
     /// decoded node value from the stored valuebuffer in the node
     value: Option<Vec<u8>>,
     /// decoded trie from the stored triebuffer in the node
-    trie: Option<Trie>,
+    trie: Trie,
     /// hashed key
     hash: Vec<u8>,
     /// flags of the stored node
@@ -30,6 +30,11 @@ impl Node {
     }
 
     #[inline]
+    pub fn set_seq(&mut self, seq: u64) -> u64 {
+        std::mem::replace(&mut self.seq, seq)
+    }
+
+    #[inline]
     pub fn len(&self) -> u64 {
         self.hash.len() as u64 * 4 + 1 + 1
     }
@@ -37,6 +42,20 @@ impl Node {
     #[inline]
     pub fn has_key(&self) -> bool {
         self.key.is_empty()
+    }
+
+    #[inline]
+    pub(crate) fn trie(&self) -> &Trie {
+        &self.trie
+    }
+
+    #[inline]
+    pub(crate) fn trie_mut(&mut self) -> &mut Trie {
+        &mut self.trie
+    }
+
+    pub(crate) fn bucket(&self, idx: usize) -> Option<&Vec<Option<u64>>> {
+        self.trie.bucket(idx)
     }
 
     #[inline]
@@ -70,11 +89,19 @@ impl Node {
         }
     }
 
+    pub(crate) fn encode(self) -> anyhow::Result<Vec<u8>> {
+        let node = self.into_proto()?;
+        let mut buf = Vec::with_capacity(node.encoded_len());
+        node.encode(&mut buf)?;
+        Ok(buf)
+    }
+
     // TODO add encoding option
-    pub(crate) fn encode(self) -> anyhow::Result<proto::Node> {
+    pub(crate) fn into_proto(self) -> anyhow::Result<proto::Node> {
+        // TODO shift flags?
         let mut node = proto::Node::default();
-        if let Some(ref trie) = self.trie {
-            node.trie_buffer = Some(trie.encode());
+        if self.trie.is_empty() {
+            node.trie_buffer = Some(self.trie.encode());
         }
         node.key = self.key;
         node.value_buffer = self.value;
@@ -89,9 +116,9 @@ impl Node {
         let hash = hash(split_key(&node.key));
 
         let trie = if let Some(trie) = node.trie_buffer {
-            Some(Trie::decode(&trie)?)
+            Trie::decode(&trie)?
         } else {
-            None
+            Default::default()
         };
 
         Ok(Self {
@@ -125,7 +152,7 @@ fn normalize_key(key: &str) -> &str {
 }
 
 #[inline]
-fn split_key(key: &str) -> impl Iterator<Item=&str> {
+fn split_key(key: &str) -> impl Iterator<Item = &str> {
     key.split('/')
 }
 

@@ -5,6 +5,7 @@ use crate::hypertrie_proto as proto;
 use crate::trie::node::Node;
 use crate::trie::put::PutOptions;
 use anyhow::anyhow;
+use futures::StreamExt;
 use hypercore::{Feed, PublicKey, SecretKey};
 use lru::LruCache;
 use prost::Message as ProtoMessage;
@@ -97,28 +98,6 @@ where
 
     pub async fn put_batch(&mut self) {}
 
-    /// Insert a value.
-    // TODO add with PutOptions
-    pub async fn put(&mut self, key: impl Into<PutOptions>, value: &[u8]) -> anyhow::Result<()> {
-        let opts = key.into();
-
-        if let Some(head) = self.head().await? {
-        } else {
-        }
-
-        unimplemented!()
-    }
-
-    async fn put_update(&mut self, head: Option<Node>) {
-        if let Some(node) = head {
-            for idx in 0..node.len() {
-                let check_collision = Node::terminator(idx);
-            }
-        }
-    }
-
-    async fn put_finalize(&mut self) {}
-
     /// Delete a key from the database.
     async fn delete(&mut self) {}
 
@@ -174,6 +153,146 @@ where
     }
 }
 
+/// Put impl
+impl<T> HyperTrie<T>
+where
+    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + Debug + Send,
+{
+    /// Insert a value.
+    // TODO add with PutOptions
+    pub async fn put(&mut self, key: impl Into<PutOptions>, value: &[u8]) -> anyhow::Result<()> {
+        let opts = key.into();
+
+        if let Some(head) = self.head().await? {
+        } else {
+        }
+
+        unimplemented!()
+    }
+
+    async fn put_update(&mut self, idx: u64, node: Node, head: Option<Node>) -> anyhow::Result<()> {
+        if let Some(head) = head {
+            for i in idx..node.len() {
+                let check_collision = Node::terminator(i);
+                let val = node.path(i);
+                let head_val = head.path(i);
+
+                if let Some(bucket) = head.bucket(i as usize) {
+                    for j in 0..bucket.len() {
+                        if !check_collision && j as u64 == val {
+                            continue;
+                        }
+
+                        if let Some(seq) = bucket.get(j).cloned().flatten() {
+                            if check_collision {
+                                // TODO this._push_collidable(i, j, seq)
+                            } else {
+                                // TODO this._push(i, j, seq)
+                            }
+                        }
+                    }
+
+                    // we copied the head bucket, if this is still the closest node, continue
+                    // if no collision is possible
+                    if head_val == val && (!check_collision || !node.collides(&head, i)) {
+                        continue;
+                    }
+
+                    // TODO this._push(i, headVal, head.seq)
+
+                    if check_collision {
+                        // TODO return this._updateHeadCollidable(i, bucket, val)
+                    }
+                    if let Some(seq) = bucket.get(val as usize).cloned().flatten() {
+                        // TODO rewrite as non recursive
+                        // return Ok(self.update_head(i, seq, node).await?);
+                    } else {
+                        break;
+                    }
+                }
+            }
+        } else {
+            // TODO finalize
+        }
+
+        // TODO this._finalize(null)
+        // TODO this._head = head?
+        unimplemented!()
+    }
+
+    async fn update_head(&mut self, i: u64, seq: u64, node: Node) -> anyhow::Result<()> {
+        let head = self.get_by_seq(seq).await?;
+        Ok(self.put_update(i + 1, node, head).await?)
+    }
+
+    async fn put_finalize(&mut self, mut node: Node) -> anyhow::Result<()> {
+        node.set_seq(self.feed.len());
+        Ok(self.feed.append(&node.encode()?).await?)
+    }
+
+    async fn update_head_collidable(
+        &mut self,
+        node: Node,
+        i: u64,
+        bucket: &Vec<Option<u64>>,
+        val: u64,
+    ) -> anyhow::Result<()> {
+        let mut missing = 1u64;
+        for j in val as usize..bucket.len() {
+            if let Some(seq) = bucket.get(j).cloned().flatten() {
+                missing += 1;
+                if let Some(other) = self.get_by_seq(seq).await? {
+                    if other.collides(&node, i) {
+                        // TODO recursive
+                        // self.put_update(i +1,node)
+                    }
+                } else {
+                    // TODO error, can't fix non collided nodes
+                }
+            } else {
+                break;
+            }
+        }
+
+        // TODO update with latest node retrieved from feed
+
+        unimplemented!()
+    }
+
+    async fn push_collidable(
+        &mut self,
+        i: u64,
+        val: u64,
+        seq: u64,
+        node: &mut Node,
+    ) -> anyhow::Result<()> {
+        if let Some(other) = self.get_by_seq(seq).await? {
+            if other.collides(node, i) {
+                self.push(node.trie_mut(), i, val, seq)
+            }
+            // TODO finalize()?
+        }
+
+        Ok(())
+    }
+
+    fn push(&mut self, trie: &mut Trie, i: u64, mut val: u64, seq: u64) {
+        while val > 5 {
+            val -= 5;
+        }
+
+        let bucket = trie.bucket_or_insert(i as usize);
+
+        while bucket.len() as u64 > val && bucket.get(val as usize).is_some() {
+            val += 5
+        }
+
+        if !bucket.contains(&Some(seq)) {
+            bucket.insert(val as usize, Some(seq));
+        }
+    }
+}
+
 pub struct HypertrieBuilder {
     cache_size: usize,
 }
@@ -193,18 +312,63 @@ impl Default for ValueEncoding {
 }
 
 #[derive(Debug, Clone)]
-// TODO trie should prlby by Vec<Option<Vec<Option<u64>>>>
-struct Trie(pub Vec<Vec<Option<u64>>>);
+pub(crate) enum Bucket {
+    Vaccant,
+    Occupied(Vec<Option<u64>>),
+}
+
+// TODO use btreehashmap instead?
+#[derive(Debug, Clone, Default)]
+pub(crate) struct Trie(pub Vec<Option<Vec<Option<u64>>>>);
 
 impl Trie {
     #[inline]
     pub fn bucket(&self, idx: usize) -> Option<&Vec<Option<u64>>> {
-        self.0.get(idx)
+        if let Some(b) = self.0.get(idx) {
+            if let Some(b) = b {
+                return Some(b);
+            }
+        }
+        None
+    }
+
+    #[inline]
+    pub fn bucket_mut(&mut self, idx: usize) -> Option<&mut Vec<Option<u64>>> {
+        if let Some(b) = self.0.get_mut(idx) {
+            if let Some(b) = b {
+                return Some(b);
+            }
+        }
+        None
+    }
+
+    pub fn bucket_or_insert(&mut self, index: usize) -> &mut Vec<Option<u64>> {
+        if self.0[index].is_none() {
+            self.0.insert(index, Some(Vec::new()));
+        }
+        self.0[index].as_mut().unwrap()
+    }
+
+    /// # Panics
+    ///
+    /// Panics if `index > len`.
+    pub fn insert_bucket(
+        &mut self,
+        index: usize,
+        bucket: Vec<Option<u64>>,
+    ) -> &mut Vec<Option<u64>> {
+        self.0.insert(index, Some(bucket));
+        self.0[index].as_mut().unwrap()
     }
 
     #[inline]
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     pub fn encode(&self) -> Vec<u8> {
@@ -244,9 +408,15 @@ impl Trie {
 
         let mut trie = Vec::with_capacity(len as usize);
 
+        // the JS trie starts at trie[offset] with the first bucket
+        trie.extend(std::iter::repeat(None).take(offset));
+
         while offset < buf.len() {
             let mut idx = 0;
             offset += varinteger::decode_with_offset(buf, offset, &mut idx);
+
+            // the JS trie adds the new bucket at index `idx`, so we add empty buckets until idx == trie.len()
+            trie.extend(std::iter::repeat(None).take(idx as usize - trie.len()));
 
             let mut bitfield = 0;
             offset += varinteger::decode_with_offset(buf, offset, &mut bitfield);
@@ -266,7 +436,7 @@ impl Trie {
 
                 bitfield = (bitfield - bit) / 2;
             }
-            trie.push(bucket);
+            trie.push(Some(bucket));
         }
 
         Ok(Trie(trie))

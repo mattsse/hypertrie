@@ -1,3 +1,4 @@
+#![allow(unused)]
 use async_std::fs;
 use async_std::prelude::*;
 use futures::FutureExt;
