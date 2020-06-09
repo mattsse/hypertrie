@@ -2,21 +2,26 @@
 //!Uses a rolling hash array mapped trie to index key/value data on top of a hypercore.
 use crate::discovery_key;
 use crate::hypertrie_proto as proto;
+use crate::trie::get::{Get, GetOptions};
 use crate::trie::node::Node;
-use crate::trie::put::PutOptions;
+use crate::trie::put::{Put, PutOptions};
 use anyhow::anyhow;
+use async_trait::async_trait;
 use futures::StreamExt;
-use hypercore::{Feed, PublicKey, SecretKey};
+use hypercore::{Feed, PublicKey, SecretKey, Storage, Store};
 use lru::LruCache;
 use prost::Message as ProtoMessage;
+use random_access_disk::RandomAccessDisk;
+use random_access_memory::RandomAccessMemory;
 use random_access_storage::RandomAccess;
 use std::fmt;
-use std::fmt::Debug;
 use std::hash::Hash;
+use std::path::PathBuf;
 
 pub mod batch;
 pub mod delete;
 pub mod diff;
+pub mod extension;
 pub mod get;
 pub mod history;
 pub mod node;
@@ -48,13 +53,24 @@ where
     pub async fn put(&mut self) {}
 }
 
-struct HyperTrie<T>
+pub enum Command {
+    Get,
+    Delete,
+    Diff,
+    Put,
+}
+
+#[async_trait]
+pub trait TrieCommand {
+    fn process(&mut self, trie: ());
+}
+
+pub struct HyperTrie<T>
 where
-    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug,
+    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
 {
     /// these are all from the metadata feed
     feed: Feed<T>,
-    discovery_key: [u8; 32],
     version: usize,
     /// This is public key of the content feed
     metadata: Option<Vec<u8>>,
@@ -65,7 +81,7 @@ where
 
 impl<T> HyperTrie<T>
 where
-    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + Debug + Send,
+    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
 {
     /// Returns the db public key. You need to pass this to other instances you want to replicate with.
     pub fn key(&self) -> &PublicKey {
@@ -91,9 +107,17 @@ where
     async fn diff(self) {}
 
     /// Lookup a key. Returns a result node if found or `None` otherwise.
-    // TODO add options
-    pub async fn get(&mut self, key: &str) -> anyhow::Result<Node> {
-        unimplemented!()
+    pub async fn get(&mut self, opts: impl Into<GetOptions>) -> anyhow::Result<Option<Node>> {
+        Ok(Get::new(opts).execute(self).await?)
+    }
+
+    /// Insert a value.
+    pub async fn put(
+        &mut self,
+        opts: impl Into<PutOptions>,
+        value: &[u8],
+    ) -> anyhow::Result<Option<()>> {
+        Ok(Put::new(opts, value.to_vec()).execute(self).await?)
     }
 
     pub async fn put_batch(&mut self) {}
@@ -140,11 +164,11 @@ where
         }
     }
 
-    async fn head(&mut self) -> anyhow::Result<Option<Node>> {
+    pub async fn head(&mut self) -> anyhow::Result<Option<Node>> {
         Ok(self.get_by_seq(self.head_seq()).await?)
     }
 
-    fn head_seq(&self) -> u64 {
+    pub fn head_seq(&self) -> u64 {
         if self.feed.len() < 2 {
             0
         } else {
@@ -153,148 +177,64 @@ where
     }
 }
 
-/// Put impl
-impl<T> HyperTrie<T>
-where
-    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + Debug + Send,
-{
-    /// Insert a value.
-    // TODO add with PutOptions
-    pub async fn put(&mut self, key: impl Into<PutOptions>, value: &[u8]) -> anyhow::Result<()> {
-        let opts = key.into();
+#[derive(Debug, Clone)]
+pub struct HyperTrieBuilder {
+    cache_size: usize,
+    metadata: Option<Vec<u8>>,
+}
 
-        if let Some(head) = self.head().await? {
-        } else {
-        }
-
-        unimplemented!()
+impl HyperTrieBuilder {
+    pub fn cache_size(mut self, cache_size: usize) -> Self {
+        self.cache_size = cache_size;
+        self
     }
 
-    async fn put_update(&mut self, idx: u64, node: Node, head: Option<Node>) -> anyhow::Result<()> {
-        if let Some(head) = head {
-            for i in idx..node.len() {
-                let check_collision = Node::terminator(i);
-                let val = node.path(i);
-                let head_val = head.path(i);
-
-                if let Some(bucket) = head.bucket(i as usize) {
-                    for j in 0..bucket.len() {
-                        if !check_collision && j as u64 == val {
-                            continue;
-                        }
-
-                        if let Some(seq) = bucket.get(j).cloned().flatten() {
-                            if check_collision {
-                                // TODO this._push_collidable(i, j, seq)
-                            } else {
-                                // TODO this._push(i, j, seq)
-                            }
-                        }
-                    }
-
-                    // we copied the head bucket, if this is still the closest node, continue
-                    // if no collision is possible
-                    if head_val == val && (!check_collision || !node.collides(&head, i)) {
-                        continue;
-                    }
-
-                    // TODO this._push(i, headVal, head.seq)
-
-                    if check_collision {
-                        // TODO return this._updateHeadCollidable(i, bucket, val)
-                    }
-                    if let Some(seq) = bucket.get(val as usize).cloned().flatten() {
-                        // TODO rewrite as non recursive
-                        // return Ok(self.update_head(i, seq, node).await?);
-                    } else {
-                        break;
-                    }
-                }
-            }
-        } else {
-            // TODO finalize
-        }
-
-        // TODO this._finalize(null)
-        // TODO this._head = head?
-        unimplemented!()
+    pub fn metadata(mut self, metadata: Vec<u8>) -> Self {
+        self.metadata = Some(metadata);
+        self
     }
 
-    async fn update_head(&mut self, i: u64, seq: u64, node: Node) -> anyhow::Result<()> {
-        let head = self.get_by_seq(seq).await?;
-        Ok(self.put_update(i + 1, node, head).await?)
+    pub async fn build<T, Cb>(self, create: Cb) -> anyhow::Result<HyperTrie<T>>
+    where
+        T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+        Cb: Fn(
+            Store,
+        )
+            -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<T>> + Send>>,
+    {
+        Ok(self.with_storage(Storage::new(create).await?).await?)
     }
 
-    async fn put_finalize(&mut self, mut node: Node) -> anyhow::Result<()> {
-        node.set_seq(self.feed.len());
-        Ok(self.feed.append(&node.encode()?).await?)
+    pub async fn with_storage<T>(self, storage: Storage<T>) -> anyhow::Result<HyperTrie<T>>
+    where
+        T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+    {
+        let feed = Feed::with_storage(storage).await?;
+
+        Ok(HyperTrie {
+            feed,
+            version: 0,
+            metadata: self.metadata,
+            cache: LruCache::new(self.cache_size),
+        })
     }
 
-    async fn update_head_collidable(
-        &mut self,
-        node: Node,
-        i: u64,
-        bucket: &Vec<Option<u64>>,
-        val: u64,
-    ) -> anyhow::Result<()> {
-        let mut missing = 1u64;
-        for j in val as usize..bucket.len() {
-            if let Some(seq) = bucket.get(j).cloned().flatten() {
-                missing += 1;
-                if let Some(other) = self.get_by_seq(seq).await? {
-                    if other.collides(&node, i) {
-                        // TODO recursive
-                        // self.put_update(i +1,node)
-                    }
-                } else {
-                    // TODO error, can't fix non collided nodes
-                }
-            } else {
-                break;
-            }
-        }
-
-        // TODO update with latest node retrieved from feed
-
-        unimplemented!()
+    pub async fn ram(self) -> anyhow::Result<HyperTrie<RandomAccessMemory>> {
+        Ok(self.with_storage(Storage::new_memory().await?).await?)
     }
 
-    async fn push_collidable(
-        &mut self,
-        i: u64,
-        val: u64,
-        seq: u64,
-        node: &mut Node,
-    ) -> anyhow::Result<()> {
-        if let Some(other) = self.get_by_seq(seq).await? {
-            if other.collides(node, i) {
-                self.push(node.trie_mut(), i, val, seq)
-            }
-            // TODO finalize()?
-        }
-
-        Ok(())
-    }
-
-    fn push(&mut self, trie: &mut Trie, i: u64, mut val: u64, seq: u64) {
-        while val > 5 {
-            val -= 5;
-        }
-
-        let bucket = trie.bucket_or_insert(i as usize);
-
-        while bucket.len() as u64 > val && bucket.get(val as usize).is_some() {
-            val += 5
-        }
-
-        if !bucket.contains(&Some(seq)) {
-            bucket.insert(val as usize, Some(seq));
-        }
+    pub async fn disk(self, dir: &PathBuf) -> anyhow::Result<HyperTrie<RandomAccessDisk>> {
+        Ok(self.with_storage(Storage::new_disk(dir).await?).await?)
     }
 }
 
-pub struct HypertrieBuilder {
-    cache_size: usize,
+impl Default for HyperTrieBuilder {
+    fn default() -> Self {
+        Self {
+            cache_size: 256,
+            metadata: None,
+        }
+    }
 }
 
 // TODO impl watcher: channels or futures::stream::Stream?
@@ -440,5 +380,27 @@ impl Trie {
         }
 
         Ok(Trie(trie))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[async_std::test]
+    async fn basic_put_get() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let node = trie.get("hello").await?;
+
+        dbg!(node);
+
+        // trie.put("hello", b"world").await?;
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn encode_decode_trie() -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
     }
 }
