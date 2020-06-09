@@ -1,1 +1,158 @@
+use crate::trie::node::Node;
+use crate::trie::HyperTrie;
+use prost::Message;
+use random_access_storage::RandomAccess;
+use std::fmt;
 
+#[derive(Clone, Debug)]
+pub struct Get {
+    node: Node,
+    closest: bool,
+    prefix: Option<String>,
+    hidden: bool,
+    // TODO needed?
+    head: u64,
+}
+
+impl Get {
+    pub fn new(opts: impl Into<GetOptions>) -> Self {
+        let opts = opts.into();
+        let node = Node::new(opts.key, 0);
+        Self {
+            node,
+            closest: opts.closest,
+            prefix: opts.prefix,
+            hidden: opts.hidden,
+            head: 0,
+        }
+    }
+
+    pub fn len(&self) -> u64 {
+        if self.prefix.is_some() {
+            self.node.len() - 1
+        } else {
+            self.node.len()
+        }
+    }
+
+    // TODO put this in an async trait?
+    pub(crate) async fn execute<T>(mut self, db: &mut HyperTrie<T>) -> anyhow::Result<Option<Node>>
+    where
+        T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+    {
+        self.head = db.head_seq();
+
+        // TODO handle _sendExt
+
+        if let Some(head) = db.get_by_seq(self.head).await? {
+            Ok(self.update(0, head, db).await?)
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn update<T>(
+        mut self,
+        mut seq: u64,
+        mut head: Node,
+        db: &mut HyperTrie<T>,
+    ) -> anyhow::Result<Option<Node>>
+    where
+        T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+    {
+        let mut i = seq;
+
+        while i < self.len() {
+            let check_collision = Node::terminator(i);
+            let val = self.node.path(i);
+
+            if head.path(i) == val {
+                if !check_collision || !self.node.collides(&head, i) {
+                    i += 1;
+                    continue;
+                }
+            }
+
+            if let Some(bucket) = head.bucket(i as usize) {
+                if check_collision {
+                    // update head collides
+                    let mut missing = 1u64;
+                    let mut node = None;
+
+                    for j in (val as usize..bucket.len()).step_by(5) {
+                        if let Some(s) = bucket.get(j).cloned().flatten() {
+                            missing += 1;
+                            if let Some(n) = db.get_by_seq(s).await? {
+                                if !n.collides(&self.node, i) {
+                                    node = Some(n);
+                                }
+
+                                missing -= 1;
+                                if missing > 0 {
+                                    continue;
+                                }
+
+                                if node.is_none() {
+                                    return if self.closest {
+                                        Ok(Some(self.node))
+                                    } else {
+                                        Ok(None)
+                                    };
+                                }
+
+                                seq += 1;
+                                i = seq;
+                                continue;
+                            } else {
+                                return Err(anyhow::anyhow!("no node for seq {}", s));
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                }
+
+                if let Some(s) = bucket.get(val as usize).cloned().flatten() {
+                    // return update head
+                    if let Some(node) = db.get_by_seq(s).await? {
+                        // restart for new node
+                        head = node;
+                        seq += 1;
+                        i = seq;
+                        continue;
+                    }
+                } else {
+                    return if self.closest {
+                        Ok(Some(head))
+                    } else {
+                        Ok(None)
+                    };
+                }
+            }
+
+            i += 1;
+        }
+
+        Ok(Some(head))
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct GetOptions {
+    key: String,
+    closest: bool,
+    prefix: Option<String>,
+    hidden: bool,
+}
+
+// used so we can pass a single str as well as configured options to the put function
+impl<T: Into<String>> From<T> for GetOptions {
+    fn from(s: T) -> Self {
+        Self {
+            key: s.into(),
+            closest: false,
+            prefix: None,
+            hidden: false,
+        }
+    }
+}
