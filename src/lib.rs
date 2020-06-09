@@ -15,6 +15,8 @@ mod hypertrie_proto {
 mod storage;
 mod trie;
 
+pub use crate::trie::{HyperTrie, HyperTrieBuilder};
+
 const HYPERCORE: &'static [u8] = b"hypercore";
 
 const MASTER_KEY_FILENAME: &'static str = "master_key";
