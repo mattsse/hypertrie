@@ -9,10 +9,10 @@ pub(crate) const HIDDEN_FLAG: u64 = 1;
 
 #[derive(Debug, Clone)]
 pub struct Node {
-    /// index of the node in the Feed
-    seq: u64,
     /// hypertrie key
     key: String,
+    /// index of the node in the Feed
+    seq: u64,
     /// decoded node value from the stored valuebuffer in the node
     value: Option<Vec<u8>>,
     /// decoded trie from the stored triebuffer in the node
@@ -29,9 +29,42 @@ impl Node {
         idx > 0 && idx & 31 == 0
     }
 
+    pub(crate) fn hash_key(key: &str) -> Vec<u8> {
+        hash(split_key(key))
+    }
+
+    pub fn new(key: impl Into<String>, seq: u64) -> Self {
+        let key = key.into();
+        let hash = Self::hash_key(&key);
+        Self {
+            key: key.into(),
+            seq,
+            value: None,
+            trie: Default::default(),
+            hash,
+            flags: None,
+        }
+    }
+
+    pub fn with_value(key: impl Into<String>, seq: u64, value: Vec<u8>) -> Self {
+        let mut n = Self::new(key, seq);
+        n.value = Some(value);
+        n
+    }
+
+    #[inline]
+    pub fn set_value(&mut self, value: Vec<u8>) -> Option<Vec<u8>> {
+        std::mem::replace(&mut self.value, Some(value))
+    }
+
     #[inline]
     pub fn set_seq(&mut self, seq: u64) -> u64 {
         std::mem::replace(&mut self.seq, seq)
+    }
+
+    #[inline]
+    pub fn seq(&self) -> u64 {
+        self.seq
     }
 
     #[inline]
@@ -113,7 +146,7 @@ impl Node {
     pub(crate) fn decode(buf: &[u8], seq: u64) -> anyhow::Result<Self> {
         let node = proto::Node::decode(buf)?;
         // assumed key is correctly normalized before
-        let hash = hash(split_key(&node.key));
+        let hash = Self::hash_key(&node.key);
 
         let trie = if let Some(trie) = node.trie_buffer {
             Trie::decode(&trie)?
@@ -155,12 +188,3 @@ fn normalize_key(key: &str) -> &str {
 fn split_key(key: &str) -> impl Iterator<Item = &str> {
     key.split('/')
 }
-
-// fn split key on '/'
-
-// fn hash(splitkey) {
-// allocate Vec::with_capacity(8* splitkey.len())
-// siphash24 each key in splitkey
-// sip hasher use
-// let hasher = DefaultHasher::new();
-//}
