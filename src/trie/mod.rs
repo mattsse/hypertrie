@@ -2,6 +2,7 @@
 //!Uses a rolling hash array mapped trie to index key/value data on top of a hypercore.
 use crate::discovery_key;
 use crate::hypertrie_proto as proto;
+use crate::trie::extension::HypertrieExtension;
 use crate::trie::get::{Get, GetOptions};
 use crate::trie::node::Node;
 use crate::trie::put::{Put, PutOptions};
@@ -77,6 +78,9 @@ where
     /// cache for seqs
     // TODO what's the value here? `valueBuffer` from a node?
     cache: LruCache<u64, Node>,
+    /// How to encode/decode the value of nodes
+    value_encoding: ValueEncoding,
+    extension: Option<HypertrieExtension>,
 }
 
 impl<T> HyperTrie<T>
@@ -181,6 +185,8 @@ where
 pub struct HyperTrieBuilder {
     cache_size: usize,
     metadata: Option<Vec<u8>>,
+    value_encoding: Option<ValueEncoding>,
+    extension: Option<HypertrieExtension>,
 }
 
 impl HyperTrieBuilder {
@@ -191,6 +197,16 @@ impl HyperTrieBuilder {
 
     pub fn metadata(mut self, metadata: Vec<u8>) -> Self {
         self.metadata = Some(metadata);
+        self
+    }
+
+    pub fn value_encoding(mut self, value_encoding: ValueEncoding) -> Self {
+        self.value_encoding = Some(value_encoding);
+        self
+    }
+
+    pub fn extension(mut self, extension: HypertrieExtension) -> Self {
+        self.extension = Some(extension);
         self
     }
 
@@ -211,12 +227,16 @@ impl HyperTrieBuilder {
     {
         let feed = Feed::with_storage(storage).await?;
 
-        Ok(HyperTrie {
+        let mut trie = HyperTrie {
             feed,
             version: 0,
             metadata: self.metadata,
             cache: LruCache::new(self.cache_size),
-        })
+            value_encoding: self.value_encoding.unwrap_or_default(),
+            extension: self.extension,
+        };
+        trie.ready().await?;
+        Ok(trie)
     }
 
     pub async fn ram(self) -> anyhow::Result<HyperTrie<RandomAccessMemory>> {
@@ -233,16 +253,18 @@ impl Default for HyperTrieBuilder {
         Self {
             cache_size: 256,
             metadata: None,
+            value_encoding: None,
+            extension: None,
         }
     }
 }
 
-// TODO impl watcher: channels or futures::stream::Stream?
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ValueEncoding {
-    Json,
     Binary,
+    // TODO make json a feature
+    Json,
+    // TODO others?
 }
 
 impl Default for ValueEncoding {
@@ -258,7 +280,7 @@ pub(crate) enum Bucket {
 }
 
 // TODO use btreehashmap instead?
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub(crate) struct Trie(pub Vec<Option<Vec<Option<u64>>>>);
 
 impl Trie {
