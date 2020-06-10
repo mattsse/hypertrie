@@ -1,13 +1,14 @@
 use crate::hypertrie_proto as proto;
-use crate::trie::Trie;
+use crate::trie::{Trie, ValueEncoding};
 use prost::Message;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::ops::{Div, Sub};
 use std::path::Path;
 
 pub(crate) const HIDDEN_FLAG: u64 = 1;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Node {
     /// hypertrie key
     key: String,
@@ -68,6 +69,11 @@ impl Node {
     }
 
     #[inline]
+    pub fn key(&self) -> &str {
+        &self.key
+    }
+
+    #[inline]
     pub fn len(&self) -> u64 {
         self.hash.len() as u64 * 4 + 1 + 1
     }
@@ -106,8 +112,33 @@ impl Node {
     }
 
     #[inline]
+    pub fn compare(&self, other: &Node) -> i64 {
+        let min = std::cmp::min(self.len(), other.len());
+        for i in 0..min {
+            let diff = self.path(i) as i64 - other.path(i) as i64;
+            if diff != 0 {
+                return diff;
+            }
+        }
+        0
+    }
+
+    #[inline]
     pub fn collides(&self, other: &Node, i: u64) -> bool {
-        unimplemented!()
+        if i == 0 {
+            return false;
+        }
+        if i == self.len() - 1 {
+            return self.key() != other.key();
+        }
+
+        let j = ((i - 1) / 32) as usize;
+        if let Some(a) = split_key(self.key()).nth(j) {
+            if let Some(b) = split_key(other.key()).nth(j) {
+                return a != b;
+            }
+        }
+        return false;
     }
 
     pub fn path(&self, mut idx: u64) -> u64 {
