@@ -134,9 +134,11 @@ where
             let mut header = proto::Header::default();
             header.r#type = "hypertrie".to_string();
             header.metadata = self.metadata.clone();
+            let mut buf = Vec::with_capacity(header.encoded_len());
+            header.encode(&mut buf)?;
+            self.feed.append(&buf).await?;
         }
-        // insert header
-        unimplemented!()
+        Ok(())
     }
 
     pub async fn get_metadata(&mut self) -> anyhow::Result<Option<Vec<u8>>> {
@@ -335,7 +337,7 @@ impl Trie {
 
     pub fn encode(&self) -> Vec<u8> {
         // TODO varint implementation that uses `bytes::buf::Buf`
-        let mut buf = Vec::with_capacity(65536);
+        let mut buf = vec![0; 65536];
         let mut offset = varinteger::encode(self.len() as u64, &mut buf);
 
         for i in 0..self.len() {
