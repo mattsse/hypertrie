@@ -219,3 +219,31 @@ fn normalize_key(key: &str) -> &str {
 fn split_key(key: &str) -> impl Iterator<Item = &str> {
     key.split('/')
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn collision() {
+        let a = Node::new("hello", 0);
+        assert!(!a.collides(&a.clone(), 0));
+
+        let a = Node::new("hello/world", 0);
+        assert!(!a.collides(&a.clone(), 1));
+        assert!(!a.collides(&a.clone(), 2));
+
+        let b = Node::new("root/world", 0);
+        assert!(a.collides(&b, 1));
+        assert!(!a.collides(&b, 64));
+        assert!(!a.collides(&b, 33));
+        assert!(a.collides(&b, 65));
+
+        let b = Node::new("root/etc/world", 0);
+        assert!(a.collides(&b, 33));
+        assert!(a.collides(&b, 65));
+    }
+
+    #[test]
+    fn path() {}
+}
