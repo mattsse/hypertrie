@@ -41,7 +41,9 @@ impl Get {
         T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {
         self.head = db.head_seq();
-
+        if self.head == 0 {
+            return Ok(None);
+        }
         // TODO handle _sendExt
 
         if let Some(head) = db.get_by_seq(self.head).await? {
@@ -63,18 +65,25 @@ impl Get {
         let mut i = seq;
 
         while i < self.len() {
+            println!("i: {}, seq {}, len: {}", i, seq, self.len());
             let check_collision = Node::terminator(i);
             let val = self.node.path(i);
 
             if head.path(i) == val {
                 if !check_collision || !self.node.collides(&head, i) {
                     i += 1;
+                    println!("continue");
                     continue;
                 }
             }
 
-            if let Some(bucket) = head.bucket(i as usize) {
+            let bucket = head.bucket(i as usize);
+
+            dbg!(head.clone());
+
+            if let Some(bucket) = bucket.clone() {
                 if check_collision {
+                    dbg!("has collision");
                     // update head collides
                     let mut missing = 1u64;
                     let mut node = None;
@@ -111,7 +120,9 @@ impl Get {
                         }
                     }
                 }
+            }
 
+            if let Some(bucket) = bucket {
                 if let Some(s) = bucket.get(val as usize).cloned().flatten() {
                     // return update head
                     if let Some(node) = db.get_by_seq(s).await? {
@@ -128,6 +139,12 @@ impl Get {
                         Ok(None)
                     };
                 }
+            } else {
+                return if self.closest {
+                    Ok(Some(head))
+                } else {
+                    Ok(None)
+                };
             }
 
             i += 1;
