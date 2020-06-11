@@ -438,7 +438,31 @@ mod tests {
 
         let put = trie.put("hello", b"world").await?;
         let get = trie.get("hello").await?.unwrap();
+        assert_eq!(put, get);
 
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn get_on_empty() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        let get = trie.get("hello").await?;
+        assert!(get.is_none());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn ignore_leading_slash() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        let put = trie.put("/hello", b"world").await?;
+
+        let get = trie.get("/hello").await?.unwrap();
+        assert_eq!(put, get);
+
+        let get = trie.get("hello").await?.unwrap();
         assert_eq!(put, get);
 
         Ok(())
