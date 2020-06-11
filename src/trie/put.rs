@@ -1,4 +1,4 @@
-use crate::trie::node::Node;
+use crate::trie::node::{Node, HIDDEN_FLAG};
 use crate::trie::{HyperTrie, Trie};
 use prost::Message;
 use random_access_storage::RandomAccess;
@@ -25,7 +25,15 @@ impl Put {
 
     pub fn new(opts: impl Into<PutOptions>, value: Vec<u8>) -> Self {
         let opts = opts.into();
-        let node = Node::with_value(opts.key, 0, value);
+        let mut node = Node::with_value(opts.key, 0, value);
+        let mut flags = opts.flags << 8;
+        if opts.hidden {
+            flags | HIDDEN_FLAG;
+        } else {
+            flags | 0;
+        }
+        node.set_flags(flags);
+
         Self {
             node,
             closest: opts.closest,
@@ -37,7 +45,7 @@ impl Put {
     }
 
     // TODO put this in an async trait?
-    pub(crate) async fn execute<T>(mut self, db: &mut HyperTrie<T>) -> anyhow::Result<Option<()>>
+    pub(crate) async fn execute<T>(mut self, db: &mut HyperTrie<T>) -> anyhow::Result<Node>
     where
         T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {
@@ -48,7 +56,8 @@ impl Put {
         if let Some(head) = db.get_by_seq(self.head).await? {
             Ok(self.update(0, head, db).await?)
         } else {
-            Ok(Some(self.finalize(db).await?))
+            self.finalize(db).await?;
+            Ok(self.node)
         }
     }
 
@@ -57,7 +66,7 @@ impl Put {
         mut seq: u64,
         mut head: Node,
         db: &mut HyperTrie<T>,
-    ) -> anyhow::Result<Option<()>>
+    ) -> anyhow::Result<Node>
     where
         T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {
@@ -118,7 +127,8 @@ impl Put {
                                 }
 
                                 if node.is_none() {
-                                    return Ok(None);
+                                    self.finalize(db).await?;
+                                    continue;
                                 }
                                 seq += 1;
                                 i = seq;
@@ -129,17 +139,18 @@ impl Put {
                         }
                     }
                 } else {
-                    return Ok(None);
+                    seq += 1;
+                    i = seq;
+                    continue;
                 }
             }
 
             if let Some(bucket) = bucket {
+                // update head
                 if let Some(s) = bucket.get(val as usize).cloned().flatten() {
                     // update head
                     if let Some(h) = db.get_by_seq(s).await? {
                         head = h
-                    } else {
-                        return Ok(None);
                     }
                     seq += 1;
                     i = seq;
@@ -148,25 +159,27 @@ impl Put {
                     break;
                 }
             }
+
+            i += 1;
         }
 
         // TODO this._head = head?
-        Ok(Some(self.finalize(db).await?))
+        self.finalize(db).await?;
+        Ok(self.node)
     }
 
     fn push(trie: &mut Trie, i: u64, mut val: u64, seq: u64) {
-        while val > 5 {
+        while val >= 5 {
+            dbg!(val);
             val -= 5;
         }
-
         let bucket = trie.bucket_or_insert(i as usize);
-
         while bucket.len() as u64 > val && bucket.get(val as usize).is_some() {
             val += 5
         }
 
         if !bucket.contains(&Some(seq)) {
-            bucket.insert(val as usize, Some(seq));
+            Trie::insert_value(val as usize, seq, bucket);
         }
     }
 
@@ -181,7 +194,6 @@ impl Put {
         T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {
         // TODO if (seq === this._del) return
-
         if let Some(other) = db.get_by_seq(seq).await? {
             if other.collides(&self.node, i) {
                 Self::push(self.node.trie_mut(), i, val, seq)
