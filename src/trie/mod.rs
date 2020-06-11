@@ -286,6 +286,15 @@ pub(crate) enum Bucket {
 pub(crate) struct Trie(pub Vec<Option<Vec<Option<u64>>>>);
 
 impl Trie {
+
+    #[inline]
+    pub(crate) fn insert_value(index: usize, value: u64, bucket: &mut Vec<Option<u64>>) {
+        while index >= bucket.len() {
+            bucket.push(None);
+        }
+        bucket[index] = Some(value)
+    }
+
     #[inline]
     pub fn bucket(&self, idx: usize) -> Option<&Vec<Option<u64>>> {
         if let Some(b) = self.0.get(idx) {
@@ -306,9 +315,16 @@ impl Trie {
         None
     }
 
+    fn fill_up_to(&mut self, mut index: usize) {
+        while index >= self.len() {
+            self.0.push(None);
+        }
+    }
+
     pub fn bucket_or_insert(&mut self, index: usize) -> &mut Vec<Option<u64>> {
+        self.fill_up_to(index);
         if self.0[index].is_none() {
-            self.0.insert(index, Some(Vec::new()));
+            self.0[index ] = Some(Vec::new());
         }
         self.0[index].as_mut().unwrap()
     }
@@ -321,7 +337,8 @@ impl Trie {
         index: usize,
         bucket: Vec<Option<u64>>,
     ) -> &mut Vec<Option<u64>> {
-        self.0.insert(index, Some(bucket));
+        self.fill_up_to(index);
+        self.0[index] = Some(bucket);
         self.0[index].as_mut().unwrap()
     }
 
@@ -365,43 +382,43 @@ impl Trie {
         buf.to_vec()
     }
 
-    pub fn decode(mut buf: &[u8]) -> anyhow::Result<Self> {
+    pub fn decode(mut buf: &[u8]) -> Self {
+        if !buf.has_remaining() {
+            return Trie(vec![])
+        }
         let remaining = buf.remaining();
-        let mut len = varintbuf::decode(buf);
+        let mut len = varintbuf::decode(&mut buf);
 
-        let mut trie = Vec::with_capacity(len as usize);
+        let mut trie = Trie(Vec::with_capacity(len as usize));
 
-        let offset = remaining - buf.remaining();
-
-        // the JS trie starts at trie[offset] with the first bucket
-        trie.extend(std::iter::repeat(None).take(offset));
+        if buf.has_remaining() {
+            // the JS implementations starts at trie[offset] with the first bucket
+            let offset = remaining - buf.remaining();
+            trie.0.extend(std::iter::repeat(None).take(offset));
+        }
 
         while buf.has_remaining() {
-            let idx = varintbuf::decode(buf);
+            let idx = varintbuf::decode(&mut buf);
 
-            // the JS trie adds the new bucket at index `idx`, so we add empty buckets until idx == trie.len()
-            trie.extend(std::iter::repeat(None).take(idx as usize - trie.len()));
+            let mut bitfield = varintbuf::decode(&mut buf);
+            let mut pos = 0;
 
-            let mut bitfield = varintbuf::decode(buf);
-
-            let mut bucket = Vec::with_capacity((32 - bitfield.leading_zeros()) as usize);
+            let mut bucket = Vec::with_capacity((32 - (bitfield as u32).leading_zeros()) as usize);
 
             while bitfield > 0 {
                 let bit = bitfield & 1;
 
                 if bit != 0 {
-                    let val = varintbuf::decode(buf);
-                    bucket.push(Some(val));
-                } else {
-                    bucket.push(None);
+                    let val = varintbuf::decode(&mut buf);
+                    Trie::insert_value(pos, val, &mut bucket);
                 }
 
                 bitfield = (bitfield - bit) / 2;
+                pos+=1;
             }
-            trie.push(Some(bucket));
+            trie.insert_bucket(idx as usize, bucket);
         }
-
-        Ok(Trie(trie))
+        trie
     }
 }
 
