@@ -8,6 +8,7 @@ use crate::trie::node::Node;
 use crate::trie::put::{Put, PutOptions};
 use anyhow::anyhow;
 use async_trait::async_trait;
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::StreamExt;
 use hypercore::{Feed, PublicKey, SecretKey, Storage, Store};
 use lru::LruCache;
@@ -116,11 +117,7 @@ where
     }
 
     /// Insert a value.
-    pub async fn put(
-        &mut self,
-        opts: impl Into<PutOptions>,
-        value: &[u8],
-    ) -> anyhow::Result<Option<()>> {
+    pub async fn put(&mut self, opts: impl Into<PutOptions>, value: &[u8]) -> anyhow::Result<Node> {
         Ok(Put::new(opts, value.to_vec()).execute(self).await?)
     }
 
@@ -175,6 +172,7 @@ where
     }
 
     pub fn head_seq(&self) -> u64 {
+        dbg!(self.feed.len());
         if self.feed.len() < 2 {
             0
         } else {
@@ -275,6 +273,8 @@ impl Default for ValueEncoding {
     }
 }
 
+// TODO impl watcher: channels or futures::stream::Stream?
+
 #[derive(Debug, Clone)]
 pub(crate) enum Bucket {
     Vaccant,
@@ -282,7 +282,7 @@ pub(crate) enum Bucket {
 }
 
 // TODO use btreehashmap instead?
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Trie(pub Vec<Option<Vec<Option<u64>>>>);
 
 impl Trie {
@@ -336,13 +336,12 @@ impl Trie {
     }
 
     pub fn encode(&self) -> Vec<u8> {
-        // TODO varint implementation that uses `bytes::buf::Buf`
-        let mut buf = vec![0; 65536];
-        let mut offset = varinteger::encode(self.len() as u64, &mut buf);
+        let mut buf = BytesMut::with_capacity(self.len());
+        varintbuf::encode(self.len() as u64, &mut buf);
 
         for i in 0..self.len() {
             if let Some(bucket) = self.bucket(i) {
-                offset += varinteger::encode_with_offset(i as u64, &mut buf, offset);
+                varintbuf::encode(i as u64, &mut buf);
 
                 let mut bit = 1;
                 let mut bitfield = 0;
@@ -354,36 +353,36 @@ impl Trie {
                     bit *= 2;
                 }
 
-                offset += varinteger::encode_with_offset(bitfield, &mut buf, offset);
+                varintbuf::encode(bitfield, &mut buf);
 
                 for j in 0..bucket.len() {
                     if let Some(seq) = bucket.get(j).cloned().flatten() {
-                        offset += varinteger::encode_with_offset(seq as u64, &mut buf, offset);
+                        varintbuf::encode(seq as u64, &mut buf);
                     }
                 }
             }
         }
-        buf[..offset].to_vec()
+        buf.to_vec()
     }
 
-    pub fn decode(buf: &[u8]) -> anyhow::Result<Self> {
-        let mut len = 0;
-        let mut offset = varinteger::decode(buf, &mut len);
+    pub fn decode(mut buf: &[u8]) -> anyhow::Result<Self> {
+        let remaining = buf.remaining();
+        let mut len = varintbuf::decode(buf);
 
         let mut trie = Vec::with_capacity(len as usize);
+
+        let offset = remaining - buf.remaining();
 
         // the JS trie starts at trie[offset] with the first bucket
         trie.extend(std::iter::repeat(None).take(offset));
 
-        while offset < buf.len() {
-            let mut idx = 0;
-            offset += varinteger::decode_with_offset(buf, offset, &mut idx);
+        while buf.has_remaining() {
+            let idx = varintbuf::decode(buf);
 
             // the JS trie adds the new bucket at index `idx`, so we add empty buckets until idx == trie.len()
             trie.extend(std::iter::repeat(None).take(idx as usize - trie.len()));
 
-            let mut bitfield = 0;
-            offset += varinteger::decode_with_offset(buf, offset, &mut bitfield);
+            let mut bitfield = varintbuf::decode(buf);
 
             let mut bucket = Vec::with_capacity((32 - bitfield.leading_zeros()) as usize);
 
@@ -391,8 +390,7 @@ impl Trie {
                 let bit = bitfield & 1;
 
                 if bit != 0 {
-                    let mut val = 0;
-                    offset += varinteger::decode_with_offset(buf, offset, &mut val);
+                    let val = varintbuf::decode(buf);
                     bucket.push(Some(val));
                 } else {
                     bucket.push(None);
@@ -407,6 +405,12 @@ impl Trie {
     }
 }
 
+impl Default for Trie {
+    fn default() -> Self {
+        Trie(vec![None])
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -414,11 +418,11 @@ mod tests {
     #[async_std::test]
     async fn basic_put_get() -> Result<(), Box<dyn std::error::Error>> {
         let mut trie = HyperTrieBuilder::default().ram().await?;
-        let node = trie.get("hello").await?;
 
-        dbg!(node);
+        let put = trie.put("hello", b"world").await?;
+        let get = trie.get("hello").await?.unwrap();
 
-        // trie.put("hello", b"world").await?;
+        assert_eq!(put, get);
 
         Ok(())
     }

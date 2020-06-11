@@ -22,10 +22,10 @@ rand = "0.7.3"
 anyhow = "1.0.31"
 hex = "0.4.2"
 lru = "0.5.1"
-varinteger = "1.0.6"
 siphasher = "0.3.3"
 bytes = "0.5.4"
 async-trait = "0.1.33"
+varintbuf = { path = "../../varintbuf" }
 
 
 [dev-dependencies]
