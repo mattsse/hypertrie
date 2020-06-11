@@ -445,7 +445,38 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn encode_decode_trie() -> Result<(), Box<dyn std::error::Error>> {
+    async fn multiple_put_get() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        let hello_put = trie.put("/hello", b"world").await?;
+        let world_put = trie.put("world", b"hello").await?;
+
+        let hello_get = trie.get("hello").await?.unwrap();
+        // let world_get = trie.get("world").await?.unwrap();
+
+        // assert_eq!(hello_put, hello_get);
+        // assert_eq!(world_put, world_get);
+
         Ok(())
+    }
+
+    #[test]
+    fn encode_decode_trie() {
+
+        let trie = Trie(vec![]);
+        let buf = trie.encode();
+        assert_eq!(buf, vec![0]);
+        let decoded = Trie::decode(&*buf);
+        assert_eq!(trie, decoded);
+
+        let trie = Trie(
+            vec![None, Some(vec![None, Some(1)])]
+        );
+        let buf = trie.encode();
+        assert_eq!(buf.len(), 4);
+        assert_eq!(buf, vec![2,1,2,1]);
+
+        let decoded = Trie::decode(&*buf);
+        assert_eq!(trie, decoded);
     }
 }
