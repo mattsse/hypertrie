@@ -36,9 +36,14 @@ impl Node {
 
     pub fn new(key: impl Into<String>, seq: u64) -> Self {
         let key = key.into();
+        let key = if key.starts_with('/') {
+            key.replacen('/', "", 1)
+        } else {
+            key
+        };
         let hash = Self::hash_key(&key);
         Self {
-            key: key.into(),
+            key,
             seq,
             value: None,
             trie: Default::default(),
@@ -56,6 +61,16 @@ impl Node {
     #[inline]
     pub fn set_value(&mut self, value: Vec<u8>) -> Option<Vec<u8>> {
         std::mem::replace(&mut self.value, Some(value))
+    }
+
+    #[inline]
+    pub fn set_flags(&mut self, flags: u64) -> Option<u64> {
+        self.flags.replace(flags)
+    }
+
+    #[inline]
+    pub fn flags(&self) -> Option<u64> {
+        self.flags.clone()
     }
 
     #[inline]
@@ -138,7 +153,7 @@ impl Node {
                 return a != b;
             }
         }
-        return false;
+        false
     }
 
     pub fn path(&self, mut idx: u64) -> u64 {
@@ -153,46 +168,66 @@ impl Node {
         }
     }
 
-    pub(crate) fn encode(self) -> anyhow::Result<Vec<u8>> {
-        let node = self.into_proto()?;
+    pub(crate) fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        let node = self.as_proto()?;
         let mut buf = Vec::with_capacity(node.encoded_len());
         node.encode(&mut buf)?;
         Ok(buf)
     }
 
-    // TODO add encoding option
-    pub(crate) fn into_proto(self) -> anyhow::Result<proto::Node> {
-        // TODO shift flags?
-        let mut node = proto::Node::default();
-        if self.trie.is_empty() {
-            node.trie_buffer = Some(self.trie.encode());
-        }
-        node.key = self.key;
-        node.value_buffer = self.value;
-        node.flags = self.flags;
-
-        Ok(node)
-    }
-
-    pub(crate) fn decode(buf: &[u8], seq: u64) -> anyhow::Result<Self> {
-        let node = proto::Node::decode(buf)?;
+    pub fn from_proto(node: proto::Node) -> anyhow::Result<Self> {
         // assumed key is correctly normalized before
         let hash = Self::hash_key(&node.key);
 
         let trie = if let Some(trie) = node.trie_buffer {
-            Trie::decode(&trie)?
+            Trie::decode(&trie)
         } else {
             Default::default()
         };
 
         Ok(Self {
-            seq,
+            seq: node.seq.unwrap_or_default(),
             key: node.key,
             value: node.value_buffer,
             trie,
             hash,
             flags: node.flags,
         })
+    }
+
+    // TODO add encoding option
+    pub(crate) fn as_proto(&self) -> anyhow::Result<proto::Node> {
+        // TODO shift flags?
+        let mut node = proto::Node {
+            key: self.key.clone(),
+            value_buffer: self.value.clone(),
+            trie_buffer: None,
+            seq: Some(self.seq),
+            flags: self.flags,
+        };
+        if self.trie.is_empty() {
+            node.trie_buffer = Some(self.trie.encode());
+        }
+        Ok(node)
+    }
+
+    pub(crate) fn into_proto(self) -> anyhow::Result<proto::Node> {
+        // TODO shift flags?
+        let mut node = proto::Node {
+            key: self.key,
+            value_buffer: self.value,
+            trie_buffer: None,
+            seq: Some(self.seq),
+            flags: self.flags,
+        };
+        if self.trie.is_empty() {
+            node.trie_buffer = Some(self.trie.encode());
+        }
+        Ok(node)
+    }
+
+    pub(crate) fn decode(buf: &[u8], seq: u64) -> anyhow::Result<Self> {
+        Ok(Self::from_proto(proto::Node::decode(buf)?)?)
     }
 }
 
@@ -205,14 +240,6 @@ fn hash<'a>(keys: impl Iterator<Item = &'a str>) -> Vec<u8> {
         hash.extend_from_slice(&u64::to_le_bytes(h.finish())[..]);
     }
     hash
-}
-
-#[inline]
-fn normalize_key(key: &str) -> &str {
-    key.chars()
-        .next()
-        .map(|c| &key[c.len_utf8()..])
-        .unwrap_or("")
 }
 
 #[inline]
