@@ -65,25 +65,20 @@ impl Get {
         let mut i = seq;
 
         while i < self.len() {
-            println!("i: {}, seq {}, len: {}", i, seq, self.len());
             let check_collision = Node::terminator(i);
             let val = self.node.path(i);
 
             if head.path(i) == val {
                 if !check_collision || !self.node.collides(&head, i) {
                     i += 1;
-                    println!("continue");
                     continue;
                 }
             }
 
             let bucket = head.bucket(i as usize);
 
-            dbg!(head.clone());
-
             if let Some(bucket) = bucket.clone() {
                 if check_collision {
-                    dbg!("has collision");
                     // update head collides
                     let mut missing = 1u64;
                     let mut node = None;
@@ -132,24 +127,14 @@ impl Get {
                         i = seq;
                         continue;
                     }
-                } else {
-                    return if self.closest {
-                        Ok(Some(head))
-                    } else {
-                        Ok(None)
-                    };
                 }
-            } else {
-                return if self.closest {
-                    Ok(Some(head))
-                } else {
-                    Ok(None)
-                };
             }
-
-            i += 1;
+            return if self.closest {
+                Ok(Some(head))
+            } else {
+                Ok(None)
+            };
         }
-
         Ok(Some(head))
     }
 }
