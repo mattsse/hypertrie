@@ -31,7 +31,7 @@ impl Node {
     }
 
     pub(crate) fn hash_key(key: &str) -> Vec<u8> {
-        hash(split_key(key))
+        hash_sip24(split_key(key))
     }
 
     pub fn new(key: impl Into<String>, seq: u64) -> Self {
@@ -205,7 +205,7 @@ impl Node {
             seq: Some(self.seq),
             flags: self.flags,
         };
-        if self.trie.is_empty() {
+        if !self.trie.is_empty() {
             node.trie_buffer = Some(self.trie.encode());
         }
         Ok(node)
@@ -243,6 +243,17 @@ fn hash<'a>(keys: impl Iterator<Item = &'a str>) -> Vec<u8> {
 }
 
 #[inline]
+fn hash_sip24<'a>(keys: impl Iterator<Item = &'a str>) -> Vec<u8> {
+    let mut hash = Vec::new();
+    for key in keys {
+        let mut h = siphasher::sip::SipHasher::new_with_keys(0, 0);
+        h.write(key.as_bytes());
+        hash.extend_from_slice(&u64::to_le_bytes(h.finish())[..]);
+    }
+    hash
+}
+
+#[inline]
 fn split_key(key: &str) -> impl Iterator<Item = &str> {
     key.split('/')
 }
@@ -272,5 +283,26 @@ mod tests {
     }
 
     #[test]
-    fn path() {}
+    fn sip24() {
+        let hash = hash_sip24(split_key("hello"));
+        assert_eq!(hash, vec![185, 82, 247, 178, 93, 93, 193, 140]);
+
+        let hash = hash_sip24(split_key("hello/world"));
+        assert_eq!(
+            hash,
+            vec![185, 82, 247, 178, 93, 93, 193, 140, 110, 176, 189, 160, 206, 65, 131, 168]
+        );
+    }
+
+    #[test]
+    fn path() {
+        let a = Node::new("hello", 0);
+        let b = Node::new("world", 0);
+        assert_eq!(a.path(0), 0);
+        assert_eq!(a.path(0), b.path(0));
+        assert_eq!(a.path(1), 1);
+        assert_eq!(b.path(1), 2);
+        assert_eq!(b.path(4), 1);
+        assert_eq!(b.path(100), 4);
+    }
 }
