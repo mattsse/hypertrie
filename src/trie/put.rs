@@ -76,7 +76,6 @@ impl Put {
             let check_collision = Node::terminator(i);
             let val = self.node.path(i);
             let head_val = head.path(i);
-
             let bucket = head.bucket(i as usize);
 
             if let Some(bucket) = bucket.clone() {
@@ -155,10 +154,9 @@ impl Put {
                     seq += 1;
                     i = seq;
                     continue;
-                } else {
-                    break;
                 }
             }
+            break;
 
             i += 1;
         }
@@ -170,7 +168,6 @@ impl Put {
 
     fn push(trie: &mut Trie, i: u64, mut val: u64, seq: u64) {
         while val >= 5 {
-            dbg!(val);
             val -= 5;
         }
         let bucket = trie.bucket_or_insert(i as usize);
@@ -204,12 +201,14 @@ impl Put {
         Ok(())
     }
 
-    async fn finalize<T>(mut self, db: &mut HyperTrie<T>) -> anyhow::Result<()>
+    async fn finalize<T>(&mut self, db: &mut HyperTrie<T>) -> anyhow::Result<u64>
     where
         T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {
-        self.node.set_seq(db.feed.len());
-        Ok(db.feed.append(&self.node.encode()?).await?)
+        let seq = db.feed.len();
+        self.node.set_seq(seq);
+        db.feed.append(&self.node.encode()?).await?;
+        Ok(seq)
     }
 }
 
