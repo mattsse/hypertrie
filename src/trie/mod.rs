@@ -149,6 +149,7 @@ where
 
     pub async fn get_by_seq(&mut self, seq: u64) -> anyhow::Result<Option<Node>> {
         if seq == 0 {
+            // index 0 is always `Header`
             return Ok(None);
         }
         // TODO lookup cached node
@@ -172,7 +173,6 @@ where
     }
 
     pub fn head_seq(&self) -> u64 {
-        dbg!(self.feed.len());
         if self.feed.len() < 2 {
             0
         } else {
@@ -286,7 +286,6 @@ pub(crate) enum Bucket {
 pub(crate) struct Trie(pub Vec<Option<Vec<Option<u64>>>>);
 
 impl Trie {
-
     #[inline]
     pub(crate) fn insert_value(index: usize, value: u64, bucket: &mut Vec<Option<u64>>) {
         while index >= bucket.len() {
@@ -324,7 +323,7 @@ impl Trie {
     pub fn bucket_or_insert(&mut self, index: usize) -> &mut Vec<Option<u64>> {
         self.fill_up_to(index);
         if self.0[index].is_none() {
-            self.0[index ] = Some(Vec::new());
+            self.0[index] = Some(Vec::new());
         }
         self.0[index].as_mut().unwrap()
     }
@@ -384,7 +383,7 @@ impl Trie {
 
     pub fn decode(mut buf: &[u8]) -> Self {
         if !buf.has_remaining() {
-            return Trie(vec![])
+            return Trie(vec![]);
         }
         let remaining = buf.remaining();
         let mut len = varintbuf::decode(&mut buf);
@@ -403,7 +402,7 @@ impl Trie {
             let mut bitfield = varintbuf::decode(&mut buf);
             let mut pos = 0;
 
-            let mut bucket = Vec::with_capacity((32 - (bitfield as u32).leading_zeros()) as usize);
+            let mut bucket = Vec::with_capacity((64 - bitfield).leading_zeros() as usize);
 
             while bitfield > 0 {
                 let bit = bitfield & 1;
@@ -414,7 +413,7 @@ impl Trie {
                 }
 
                 bitfield = (bitfield - bit) / 2;
-                pos+=1;
+                pos += 1;
             }
             trie.insert_bucket(idx as usize, bucket);
         }
@@ -424,7 +423,7 @@ impl Trie {
 
 impl Default for Trie {
     fn default() -> Self {
-        Trie(vec![None])
+        Trie(vec![])
     }
 }
 
