@@ -431,6 +431,23 @@ impl Default for Trie {
 mod tests {
     use super::*;
 
+    #[test]
+    fn encode_decode_trie() {
+        let trie = Trie(vec![]);
+        let buf = trie.encode();
+        assert_eq!(buf, vec![0]);
+        let decoded = Trie::decode(&*buf);
+        assert_eq!(trie, decoded);
+
+        let trie = Trie(vec![None, Some(vec![None, Some(1)])]);
+        let buf = trie.encode();
+        assert_eq!(buf.len(), 4);
+        assert_eq!(buf, vec![2, 1, 2, 1]);
+
+        let decoded = Trie::decode(&*buf);
+        assert_eq!(trie, decoded);
+    }
+
     #[async_std::test]
     async fn basic_put_get() -> Result<(), Box<dyn std::error::Error>> {
         let mut trie = HyperTrieBuilder::default().ram().await?;
@@ -471,30 +488,124 @@ mod tests {
 
         let hello_put = trie.put("/hello", b"world").await?;
         let world_put = trie.put("world", b"hello").await?;
+        let lorem_put = trie.put("lorem", b"ipsum").await?;
 
         let hello_get = trie.get("hello").await?.unwrap();
         let world_get = trie.get("world").await?.unwrap();
+        let lorem_get = trie.get("lorem").await?.unwrap();
 
         assert_eq!(hello_put, hello_get);
         assert_eq!(world_put, world_get);
+        assert_eq!(lorem_put, lorem_get);
 
         Ok(())
     }
 
-    #[test]
-    fn encode_decode_trie() {
-        let trie = Trie(vec![]);
-        let buf = trie.encode();
-        assert_eq!(buf, vec![0]);
-        let decoded = Trie::decode(&*buf);
-        assert_eq!(trie, decoded);
+    #[async_std::test]
+    async fn overwrite() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
 
-        let trie = Trie(vec![None, Some(vec![None, Some(1)])]);
-        let buf = trie.encode();
-        assert_eq!(buf.len(), 4);
-        assert_eq!(buf, vec![2, 1, 2, 1]);
+        let put = trie.put("/hello", b"world").await?;
+        let get = trie.get("hello").await?.unwrap();
+        assert_eq!(put, get);
 
-        let decoded = Trie::decode(&*buf);
-        assert_eq!(trie, decoded);
+        let put = trie.put("/hello", b"verden").await?;
+        let get = trie.get("hello").await?.unwrap();
+        assert_eq!(put, get);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn put_in_tree() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        let root = trie.put("hello", b"a").await?;
+        let leaf = trie.put("hello/world", b"b").await?;
+
+        let get = trie.get("hello").await?.unwrap();
+        assert_eq!(root, get);
+
+        let get = trie.get("hello/world").await?.unwrap();
+        assert_eq!(leaf, get);
+
+        let leaf = trie.put("hello/world/lorem.txt", b"ipsum").await?;
+        let get = trie.get("hello/world/lorem.txt").await?.unwrap();
+        assert_eq!(leaf, get);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn put_in_tree_reverse() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        let leaf = trie.put("hello/world", b"b").await?;
+        let root = trie.put("hello", b"a").await?;
+
+        let get = trie.get("hello").await?.unwrap();
+        assert_eq!(root, get);
+
+        let get = trie.get("hello/world").await?.unwrap();
+        assert_eq!(leaf, get);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn multiple_put_in_tree() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        let leaf_a = trie.put("hello/world", b"b").await?;
+        let root = trie.put("hello", b"a").await?;
+        let leaf_b = trie.put("hello/verden", b"c").await?;
+        let root = trie.put("hello", b"d").await?;
+
+        let get = trie.get("hello").await?.unwrap();
+        assert_eq!(root, get);
+
+        let get = trie.get("hello/world").await?.unwrap();
+        assert_eq!(leaf_a, get);
+
+        let get = trie.get("hello/verden").await?.unwrap();
+        assert_eq!(leaf_b, get);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn insert_many() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        let num = 100u64;
+
+        for i in 0..num {
+            trie.put(format!("#{}", i), format!("#{}", i).as_bytes())
+                .await?;
+        }
+
+        for i in 0..num {
+            let node = trie.get(format!("#{}", i)).await?.unwrap();
+            assert_eq!(node.key(), &format!("#{}", i));
+            assert_eq!(node.value(), Some(&format!("#{}", i).as_bytes().to_vec()));
+        }
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn siphash_collision() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        let a = trie.put("idgcmnmna", b"a").await?;
+        let b = trie.put("mpomeiehc", b"b").await?;
+
+        let get = trie.get("idgcmnmna").await?.unwrap();
+        assert_eq!(get, a);
+
+        let get = trie.get("mpomeiehc").await?.unwrap();
+        assert_eq!(get, b);
+
+        Ok(())
     }
 }
