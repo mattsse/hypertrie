@@ -1,4 +1,4 @@
-use bytes::{BufMut, Buf, BytesMut};
+use bytes::{Buf, BufMut, BytesMut};
 
 // TODO use btreehashmap instead?
 #[derive(Debug, Clone, PartialEq)]

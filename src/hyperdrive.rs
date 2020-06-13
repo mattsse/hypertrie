@@ -8,8 +8,8 @@ use random_access_storage::RandomAccess;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-pub use crate::{HyperTrie, HyperTrieBuilder};
 use crate::discovery_key;
+pub use crate::{HyperTrie, HyperTrieBuilder};
 
 const MASTER_KEY_FILENAME: &'static str = "master_key";
 
@@ -19,9 +19,9 @@ const MASTER_KEY_FILENAME: &'static str = "master_key";
 /// called Hypertrie. The hash trie basically functions as a fast append-only
 /// key value store with listable folders.
 pub struct Hyperdrive<TConent, TMetadata = TConent>
-    where
-        TConent: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
-        TMetadata: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+where
+    TConent: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+    TMetadata: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
 {
     dir: PathBuf,
     content: Feed<TConent>,
@@ -32,9 +32,9 @@ pub struct Hyperdrive<TConent, TMetadata = TConent>
 //
 
 impl<TContent, TMetadata> Hyperdrive<TContent, TMetadata>
-    where
-        TContent: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
-        TMetadata: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+where
+    TContent: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+    TMetadata: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
 {
     /// If the hyperdrive has already been created, wait for the db (metadata
     /// feed) to load. If the metadata feed is writable, we can immediately load

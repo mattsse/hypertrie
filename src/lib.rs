@@ -1,11 +1,12 @@
 #![allow(unused)]
 //! Distributed single writer key/value store
 //!Uses a rolling hash array mapped trie to index key/value data on top of a hypercore.
-use crate::hypertrie_proto as proto;
 use crate::cmd::delete::{Delete, DeleteOptions};
+use crate::cmd::extension::HypertrieExtension;
 use crate::cmd::get::{Get, GetOptions};
-use crate::node::Node;
 use crate::cmd::put::{Put, PutOptions};
+use crate::hypertrie_proto as proto;
+use crate::node::Node;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
@@ -19,30 +20,29 @@ use random_access_storage::RandomAccess;
 use std::fmt;
 use std::hash::Hash;
 use std::path::PathBuf;
-use crate::cmd::extension::HypertrieExtension;
 
 mod hypertrie_proto {
     include!(concat!(env!("OUT_DIR"), "/hypertrie_pb.rs"));
 }
 
-mod storage;
-mod trie;
+pub mod cmd;
 mod hyperdrive;
 pub mod node;
-pub mod cmd;
+mod storage;
+mod trie;
 
 pub(crate) const HYPERCORE: &'static [u8] = b"hypercore";
 
 struct MountableHyperTrie<T>
-    where
-        T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug,
+where
+    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug,
 {
     feed: Feed<T>,
 }
 
 impl<T> MountableHyperTrie<T>
-    where
-        T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug,
+where
+    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug,
 {
     pub fn get_feed(&self) -> &Feed<T> {
         &self.feed
@@ -72,8 +72,8 @@ pub trait TrieCommand {
 }
 
 pub struct HyperTrie<T>
-    where
-        T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+where
+    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
 {
     /// these are all from the metadata feed
     feed: Feed<T>,
@@ -89,8 +89,8 @@ pub struct HyperTrie<T>
 }
 
 impl<T> HyperTrie<T>
-    where
-        T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+where
+    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
 {
     pub fn len(&self) -> u64 {
         self.feed.len()
@@ -219,19 +219,19 @@ impl HyperTrieBuilder {
     }
 
     pub async fn build<T, Cb>(self, create: Cb) -> anyhow::Result<HyperTrie<T>>
-        where
-            T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
-            Cb: Fn(
-                Store,
-            )
-                -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<T>> + Send>>,
+    where
+        T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+        Cb: Fn(
+            Store,
+        )
+            -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<T>> + Send>>,
     {
         Ok(self.with_storage(Storage::new(create).await?).await?)
     }
 
     pub async fn with_storage<T>(self, storage: Storage<T>) -> anyhow::Result<HyperTrie<T>>
-        where
-            T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+    where
+        T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {
         let feed = Feed::with_storage(storage).await?;
 
@@ -274,7 +274,6 @@ fn discovery_key(publickey: &PublicKey) -> blake2_rfc::blake2b::Blake2bResult {
     blake2_rfc::blake2b::blake2b(32, publickey.as_ref(), HYPERCORE)
 }
 
-
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ValueEncoding {
     Binary,
@@ -288,8 +287,6 @@ impl Default for ValueEncoding {
         ValueEncoding::Binary
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
