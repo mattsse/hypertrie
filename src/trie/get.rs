@@ -104,7 +104,7 @@ impl Get {
                                     };
                                 }
 
-                                seq += 1;
+                                seq = i + 1;
                                 i = seq;
                                 continue;
                             } else {
