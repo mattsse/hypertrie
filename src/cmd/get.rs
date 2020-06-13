@@ -1,5 +1,5 @@
-use crate::trie::node::Node;
-use crate::trie::HyperTrie;
+use crate::node::Node;
+use crate::HyperTrie;
 use prost::Message;
 use random_access_storage::RandomAccess;
 use std::fmt;

@@ -1,8 +1,9 @@
-use crate::trie::node::{Node, HIDDEN_FLAG};
-use crate::trie::{HyperTrie, Trie};
+use crate::node::{Node, HIDDEN_FLAG};
+use crate::{HyperTrie};
 use prost::Message;
 use random_access_storage::RandomAccess;
 use std::fmt;
+use crate::trie::Trie;
 
 #[derive(Clone, Debug)]
 pub struct Put {

@@ -1,5 +1,5 @@
 use crate::hypertrie_proto as proto;
-use crate::trie::{Trie, ValueEncoding};
+use crate::trie::{Trie};
 use prost::Message;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
