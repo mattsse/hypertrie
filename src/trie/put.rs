@@ -12,6 +12,7 @@ pub struct Put {
     prefix: Option<String>,
     node: Node,
     head: u64,
+    delete: u64,
 }
 
 impl Put {
@@ -25,23 +26,21 @@ impl Put {
 
     pub fn new(opts: impl Into<PutOptions>, value: Vec<u8>) -> Self {
         let opts = opts.into();
-        let mut node = Node::with_value(opts.key, 0, value);
-        let mut flags = opts.flags << 8;
-        if opts.hidden {
-            flags | HIDDEN_FLAG;
-        } else {
-            flags | 0;
-        }
-        node.set_flags(flags);
+        opts.into_put_with_value(value)
+    }
 
-        Self {
-            node,
-            closest: opts.closest,
-            prefix: opts.prefix,
-            hidden: opts.hidden,
-            head: 0,
-            flags: opts.flags,
+    pub(crate) fn new_delete(
+        opts: impl Into<PutOptions>,
+        delete: u64,
+        value: Option<Vec<u8>>,
+    ) -> Self {
+        let opts = opts.into();
+        let mut put: Put = opts.into();
+        if let Some(value) = value {
+            put.node.set_value(value);
         }
+        put.delete = delete;
+        put
     }
 
     // TODO put this in an async trait?
@@ -76,6 +75,7 @@ impl Put {
             let check_collision = Node::terminator(i);
             let val = self.node.path(i);
             let head_val = head.path(i);
+            // println!("\ni {}, val {}, head_val {}, seq {}", i, val, head_val, seq);
             let bucket = head.bucket(i as usize);
 
             if let Some(bucket) = bucket.clone() {
@@ -89,7 +89,7 @@ impl Put {
                             self.push_collidable(i, j, s, db).await?;
                         } else {
                             // TODO only if (seq !== this._del)
-                            Self::push(self.node.trie_mut(), i, j, s);
+                            self.push(i, j, s);
                         }
                     }
                 }
@@ -99,16 +99,16 @@ impl Put {
             // if no collision is possible
             if head_val == val && (!check_collision || !self.node.collides(&head, i)) {
                 i += 1;
+                // dbg!("continue");
                 continue;
             }
 
             // TODO only  if (seq !== this._del)
-            Self::push(self.node.trie_mut(), i, head_val, head.seq());
+            self.push(i, head_val, head.seq());
 
             if check_collision {
                 if let Some(bucket) = bucket.clone() {
                     // update head collides
-
                     let mut missing = 1u64;
                     let mut node = None;
 
@@ -151,14 +151,12 @@ impl Put {
                     if let Some(h) = db.get_by_seq(s).await? {
                         head = h
                     }
-                    seq += 1;
+                    seq = i + 1;
                     i = seq;
                     continue;
                 }
             }
             break;
-
-            i += 1;
         }
 
         // TODO this._head = head?
@@ -166,15 +164,22 @@ impl Put {
         Ok(self.node)
     }
 
-    fn push(trie: &mut Trie, i: u64, mut val: u64, seq: u64) {
+    fn push(&mut self, i: u64, mut val: u64, seq: u64) {
+        // println!("index {} val {} seq {}", i, val, seq);
+        if seq == self.delete {
+            return;
+        }
+
         while val >= 5 {
             val -= 5;
         }
-        let bucket = trie.bucket_or_insert(i as usize);
-        while bucket.len() as u64 > val && bucket.get(val as usize).is_some() {
+
+        let bucket = self.node.trie_mut().bucket_or_insert(i as usize);
+
+        while bucket.len() as u64 > val && bucket.get(val as usize).cloned().flatten().is_some() {
             val += 5
         }
-
+        // println!("val index {}", val);
         if !bucket.contains(&Some(seq)) {
             Trie::insert_value(val as usize, seq, bucket);
         }
@@ -190,10 +195,14 @@ impl Put {
     where
         T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {
-        // TODO if (seq === this._del) return
+        // dbg!("push_collidable");
+        if seq == self.delete {
+            return Ok(());
+        }
+
         if let Some(other) = db.get_by_seq(seq).await? {
             if other.collides(&self.node, i) {
-                Self::push(self.node.trie_mut(), i, val, seq)
+                self.push(i, val, seq)
             }
             // TODO finalize()?
         }
@@ -207,6 +216,7 @@ impl Put {
     {
         let seq = db.feed.len();
         self.node.set_seq(seq);
+        dbg!(self.node.trie().clone());
         db.feed.append(&self.node.encode()?).await?;
         Ok(seq)
     }
@@ -221,15 +231,80 @@ pub struct PutOptions {
     flags: u64,
 }
 
-// used so we can pass a single str as well as configured options to the put function
-impl<T: Into<String>> From<T> for PutOptions {
-    fn from(s: T) -> Self {
+impl PutOptions {
+    pub fn new(key: impl Into<String>) -> Self {
         Self {
-            key: s.into(),
+            key: key.into(),
             closest: false,
             prefix: None,
             hidden: false,
             flags: 0,
+        }
+    }
+
+    pub fn set_closest(mut self, closest: bool) -> Self {
+        self.closest = closest;
+        self
+    }
+
+    pub fn closest(mut self) -> Self {
+        self.closest = true;
+        self
+    }
+
+    pub fn prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.prefix = Some(prefix.into());
+        self
+    }
+
+    pub fn set_hidden(mut self, hidden: bool) -> Self {
+        self.hidden = hidden;
+        self
+    }
+
+    pub fn hidden(mut self) -> Self {
+        self.hidden = true;
+        self
+    }
+
+    pub fn flags(mut self, flags: u64) -> Self {
+        self.flags = flags;
+        self
+    }
+
+    pub fn into_put_with_value(self, value: Vec<u8>) -> Put {
+        let mut put: Put = self.into();
+        put.node.set_value(value);
+        put
+    }
+}
+
+// used so we can pass a single str as well as configured options to the put function
+impl<T: Into<String>> From<T> for PutOptions {
+    fn from(s: T) -> Self {
+        Self::new(s)
+    }
+}
+
+impl Into<Put> for PutOptions {
+    fn into(self) -> Put {
+        let mut node = Node::new(self.key, 0);
+        let mut flags = self.flags << 8;
+        if self.hidden {
+            flags | HIDDEN_FLAG;
+        } else {
+            flags | 0;
+        }
+        node.set_flags(flags);
+
+        Put {
+            node,
+            closest: self.closest,
+            prefix: self.prefix,
+            hidden: self.hidden,
+            head: 0,
+            flags: self.flags,
+            delete: 0,
         }
     }
 }
