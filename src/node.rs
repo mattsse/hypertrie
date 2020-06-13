@@ -1,10 +1,12 @@
-use crate::hypertrie_proto as proto;
-use crate::trie::Trie;
-use prost::Message;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::ops::{Div, Sub};
 use std::path::Path;
+
+use prost::Message;
+
+use crate::hypertrie_proto as proto;
+use crate::trie::Trie;
 
 pub(crate) const HIDDEN_FLAG: u64 = 1;
 

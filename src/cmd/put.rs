@@ -1,9 +1,11 @@
+use std::fmt;
+
+use prost::Message;
+use random_access_storage::RandomAccess;
+
 use crate::node::{Node, HIDDEN_FLAG};
 use crate::trie::Trie;
 use crate::HyperTrie;
-use prost::Message;
-use random_access_storage::RandomAccess;
-use std::fmt;
 
 #[derive(Clone, Debug)]
 pub struct Put {
@@ -217,7 +219,6 @@ impl Put {
     {
         let seq = db.feed.len();
         self.node.set_seq(seq);
-        dbg!(self.node.trie().clone());
         db.feed.append(&self.node.encode()?).await?;
         Ok(seq)
     }

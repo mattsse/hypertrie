@@ -1,14 +1,10 @@
 #![allow(unused)]
 //! Distributed single writer key/value store
 //!Uses a rolling hash array mapped trie to index key/value data on top of a hypercore.
-use crate::cmd::delete::{Delete, DeleteOptions};
-use crate::cmd::extension::HypertrieExtension;
-use crate::cmd::get::{Get, GetOptions};
-use crate::cmd::put::{Put, PutOptions};
-use crate::hypertrie_proto as proto;
-use crate::node::Node;
-use anyhow::anyhow;
-use async_trait::async_trait;
+use std::fmt;
+use std::hash::Hash;
+use std::path::PathBuf;
+
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::StreamExt;
 use hypercore::{Feed, PublicKey, SecretKey, Storage, Store};
@@ -17,9 +13,16 @@ use prost::Message as ProtoMessage;
 use random_access_disk::RandomAccessDisk;
 use random_access_memory::RandomAccessMemory;
 use random_access_storage::RandomAccess;
-use std::fmt;
-use std::hash::Hash;
-use std::path::PathBuf;
+
+use anyhow::anyhow;
+use async_trait::async_trait;
+
+use crate::cmd::delete::{Delete, DeleteOptions};
+use crate::cmd::extension::HypertrieExtension;
+use crate::cmd::get::{Get, GetOptions};
+use crate::cmd::put::{Put, PutOptions};
+use crate::hypertrie_proto as proto;
+use crate::node::Node;
 
 mod hypertrie_proto {
     include!(concat!(env!("OUT_DIR"), "/hypertrie_pb.rs"));

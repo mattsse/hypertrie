@@ -1,9 +1,11 @@
+use std::fmt;
+
+use futures::StreamExt;
+use random_access_storage::RandomAccess;
+
 use crate::cmd::put::{Put, PutOptions};
 use crate::node::{Node, HIDDEN_FLAG};
 use crate::HyperTrie;
-use futures::StreamExt;
-use random_access_storage::RandomAccess;
-use std::fmt;
 
 #[derive(Clone, Debug)]
 pub struct Delete {

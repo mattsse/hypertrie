@@ -1,8 +1,10 @@
-use crate::node::Node;
-use crate::HyperTrie;
+use std::fmt;
+
 use prost::Message;
 use random_access_storage::RandomAccess;
-use std::fmt;
+
+use crate::node::Node;
+use crate::HyperTrie;
 
 #[derive(Clone, Debug)]
 pub struct Get {

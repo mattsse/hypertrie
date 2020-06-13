@@ -1,6 +1,5 @@
 use bytes::{Buf, BufMut, BytesMut};
 
-// TODO use btreehashmap instead?
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Trie(pub Vec<Option<Vec<Option<u64>>>>);
 

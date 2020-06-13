@@ -1,3 +1,6 @@
+use std::fmt;
+use std::path::{Path, PathBuf};
+
 use async_std::fs;
 use async_std::prelude::*;
 use futures::FutureExt;
@@ -5,8 +8,6 @@ use hypercore::{generate_keypair, Feed, FeedBuilder, PublicKey, Storage, Store};
 use rand::RngCore;
 use random_access_disk::RandomAccessDisk;
 use random_access_storage::RandomAccess;
-use std::fmt;
-use std::path::{Path, PathBuf};
 
 use crate::discovery_key;
 pub use crate::{HyperTrie, HyperTrieBuilder};
