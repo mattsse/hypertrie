@@ -11,17 +11,17 @@ pub(crate) const HIDDEN_FLAG: u64 = 1;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Node {
     /// hypertrie key
-    key: String,
+    pub(crate) key: String,
     /// index of the node in the Feed
-    seq: u64,
+    pub(crate) seq: u64,
     /// decoded node value from the stored valuebuffer in the node
-    value: Option<Vec<u8>>,
+    pub(crate) value: Option<Vec<u8>>,
     /// decoded trie from the stored triebuffer in the node
-    trie: Trie,
+    pub(crate) trie: Trie,
     /// hashed key
-    hash: Vec<u8>,
+    pub(crate) hash: Vec<u8>,
     /// flags of the stored node
-    flags: Option<u64>,
+    pub(crate) flags: Option<u64>,
 }
 
 impl Node {
@@ -86,6 +86,11 @@ impl Node {
     #[inline]
     pub fn key(&self) -> &str {
         &self.key
+    }
+
+    #[inline]
+    pub fn value(&self) -> Option<&Vec<u8>> {
+        self.value.as_ref()
     }
 
     #[inline]
