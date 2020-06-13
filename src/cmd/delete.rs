@@ -34,7 +34,7 @@ impl Delete {
     }
 
     // TODO put this in an async trait?
-    pub(crate) async fn execute<T>(mut self, db: &mut HyperTrie<T>) -> anyhow::Result<Option<Node>>
+    pub(crate) async fn execute<T>(mut self, db: &mut HyperTrie<T>) -> anyhow::Result<Option<()>>
     where
         T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {
@@ -50,7 +50,7 @@ impl Delete {
         mut seq: u64,
         mut head: Node,
         db: &mut HyperTrie<T>,
-    ) -> anyhow::Result<Option<Node>>
+    ) -> anyhow::Result<Option<()>>
     where
         T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {
@@ -58,16 +58,16 @@ impl Delete {
 
         while i < self.len() {
             let val = self.node.path(i);
-            // println!("\ni {}, val {}, head_val {}, seq {}", i, val, head_val, seq);
             let bucket = head.bucket(i as usize);
 
-            if let Some(bucket) = bucket.clone() {
-                if head.path(i) == val {
+            if head.path(i) == val {
+                if let Some(bucket) = bucket.clone() {
                     if let Some(closest) = Self::first_seq(bucket, val) {
                         self.closest = closest;
-                        continue;
                     }
                 }
+                i+=1;
+                continue;
             }
 
             self.closest = head.seq();
@@ -91,7 +91,8 @@ impl Delete {
             return Ok(None);
         }
 
-        Ok(self.splice_closest(head, db).await.map(Option::Some)?)
+        self.splice_closest(head, db).await?;
+        Ok(Some(()))
     }
 
     async fn splice_closest<T>(

@@ -133,7 +133,7 @@ where
     }
 
     /// delete a value
-    pub async fn delete(&mut self, opts: impl Into<DeleteOptions>) -> anyhow::Result<Option<Node>> {
+    pub async fn delete(&mut self, opts: impl Into<DeleteOptions>) -> anyhow::Result<Option<()>> {
         Ok(Delete::new(opts).execute(self).await?)
     }
 
