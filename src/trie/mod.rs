@@ -2,6 +2,7 @@
 //!Uses a rolling hash array mapped trie to index key/value data on top of a hypercore.
 use crate::discovery_key;
 use crate::hypertrie_proto as proto;
+use crate::trie::delete::{Delete, DeleteOptions};
 use crate::trie::extension::HypertrieExtension;
 use crate::trie::get::{Get, GetOptions};
 use crate::trie::node::Node;
@@ -88,6 +89,10 @@ impl<T> HyperTrie<T>
 where
     T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
 {
+    pub fn len(&self) -> u64 {
+        self.feed.len()
+    }
+
     /// Returns the db public key. You need to pass this to other instances you want to replicate with.
     pub fn key(&self) -> &PublicKey {
         self.feed.public_key()
@@ -121,10 +126,10 @@ where
         Ok(Put::new(opts, value.to_vec()).execute(self).await?)
     }
 
-    pub async fn put_batch(&mut self) {}
-
-    /// Delete a key from the database.
-    async fn delete(&mut self) {}
+    /// delete a value
+    pub async fn delete(&mut self, opts: impl Into<DeleteOptions>) -> anyhow::Result<Option<Node>> {
+        Ok(Delete::new(opts).execute(self).await?)
+    }
 
     async fn ready(&mut self) -> anyhow::Result<()> {
         if self.feed.is_empty() {
@@ -402,7 +407,7 @@ impl Trie {
             let mut bitfield = varintbuf::decode(&mut buf);
             let mut pos = 0;
 
-            let mut bucket = Vec::with_capacity((64 - bitfield).leading_zeros() as usize);
+            let mut bucket = Vec::with_capacity(64 - (bitfield.leading_zeros() as usize));
 
             while bitfield > 0 {
                 let bit = bitfield & 1;
