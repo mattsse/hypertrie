@@ -10,7 +10,7 @@ use crate::HyperTrie;
 pub struct Get {
     node: Node,
     closest: bool,
-    prefix: Option<String>,
+    prefix: bool,
     hidden: bool,
     // TODO needed?
     head: u64,
@@ -30,7 +30,7 @@ impl Get {
     }
 
     pub fn len(&self) -> u64 {
-        if self.prefix.is_some() {
+        if self.prefix {
             self.node.len() - 1
         } else {
             self.node.len()
@@ -145,18 +145,49 @@ impl Get {
 pub struct GetOptions {
     key: String,
     closest: bool,
-    prefix: Option<String>,
+    prefix: bool,
     hidden: bool,
+}
+
+impl GetOptions {
+    pub fn new(key: impl Into<String>) -> Self {
+        Self {
+            key: key.into(),
+            closest: false,
+            prefix: false,
+            hidden: false,
+        }
+    }
+
+    pub fn set_closest(mut self, closest: bool) -> Self {
+        self.closest = closest;
+        self
+    }
+
+    pub fn closest(mut self) -> Self {
+        self.closest = true;
+        self
+    }
+
+    pub fn prefix(mut self) -> Self {
+        self.prefix = true;
+        self
+    }
+
+    pub fn set_hidden(mut self, hidden: bool) -> Self {
+        self.hidden = hidden;
+        self
+    }
+
+    pub fn hidden(mut self) -> Self {
+        self.hidden = true;
+        self
+    }
 }
 
 // used so we can pass a single str as well as configured options to the put function
 impl<T: Into<String>> From<T> for GetOptions {
     fn from(s: T) -> Self {
-        Self {
-            key: s.into(),
-            closest: false,
-            prefix: None,
-            hidden: false,
-        }
+        Self::new(s)
     }
 }
