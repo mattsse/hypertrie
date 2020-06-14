@@ -66,7 +66,7 @@ impl Delete {
                         self.closest = closest;
                     }
                 }
-                i+=1;
+                i += 1;
                 continue;
             }
 
@@ -190,5 +190,29 @@ impl DeleteOptions {
 impl<T: Into<String>> From<T> for DeleteOptions {
     fn from(s: T) -> Self {
         Self::new(s)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::HyperTrieBuilder;
+
+    #[async_std::test]
+    async fn delete() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        trie.put("/hello", b"world").await?;
+        assert_eq!(trie.delete("hello").await?, Some(()));
+        assert_eq!(trie.get("hello").await?, None);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn delete_empty() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+        assert_eq!(trie.get("hello").await?, None);
+        Ok(())
     }
 }

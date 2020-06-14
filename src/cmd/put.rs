@@ -15,7 +15,7 @@ pub struct Put {
     prefix: Option<String>,
     node: Node,
     head: u64,
-    delete: u64,
+    delete: Option<u64>,
 }
 
 impl Put {
@@ -42,7 +42,7 @@ impl Put {
         if let Some(value) = value {
             put.node.set_value(value);
         }
-        put.delete = delete;
+        put.delete = Some(delete);
         put
     }
 
@@ -169,7 +169,7 @@ impl Put {
 
     fn push(&mut self, i: u64, mut val: u64, seq: u64) {
         // println!("index {} val {} seq {}", i, val, seq);
-        if seq == self.delete {
+        if Some(seq) == self.delete {
             return;
         }
 
@@ -199,7 +199,7 @@ impl Put {
         T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {
         // dbg!("push_collidable");
-        if seq == self.delete {
+        if Some(seq) == self.delete {
             return Ok(());
         }
 
@@ -306,7 +306,7 @@ impl Into<Put> for PutOptions {
             hidden: self.hidden,
             head: 0,
             flags: self.flags,
-            delete: 0,
+            delete: None,
         }
     }
 }
