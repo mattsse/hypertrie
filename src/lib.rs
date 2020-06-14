@@ -583,4 +583,52 @@ mod tests {
 
         Ok(())
     }
+
+    #[async_std::test]
+    async fn batch_put() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        let batch = trie
+            .batch_put(vec![
+                ("hello", b"world"),
+                ("world", b"hello"),
+                ("lorem", b"ipsum"),
+            ])
+            .await?;
+
+        let mut nodes = Vec::with_capacity(3);
+        nodes.push(trie.get("hello").await?.unwrap());
+        nodes.push(trie.get("world").await?.unwrap());
+        nodes.push(trie.get("lorem").await?.unwrap());
+
+        assert_eq!(batch, nodes);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn batch_delete() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        let nodes = trie
+            .batch_put(vec![
+                ("hello", b"world"),
+                ("world", b"hello"),
+                ("lorem", b"ipsum"),
+                ("brown", b"doggo"),
+            ])
+            .await?;
+
+        let del = trie
+            .batch_delete(vec!["world", "hello", "ipsum", "yellow"])
+            .await?;
+        assert_eq!(del, vec![Some(()), Some(()), None, None]);
+        assert!(trie.get("hello").await?.is_none());
+
+        let node = trie.get("lorem").await?.unwrap();
+        assert_eq!(node.key(), nodes[2].key());
+        assert_eq!(node.value(), nodes[2].value());
+
+        Ok(())
+    }
 }
