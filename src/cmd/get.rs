@@ -1,6 +1,5 @@
 use std::fmt;
 
-use prost::Message;
 use random_access_storage::RandomAccess;
 
 use crate::node::Node;
@@ -56,7 +55,7 @@ impl Get {
     }
 
     async fn update<T>(
-        mut self,
+        self,
         mut seq: u64,
         mut head: Node,
         db: &mut HyperTrie<T>,

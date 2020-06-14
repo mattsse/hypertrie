@@ -3,22 +3,19 @@
 //! Distributed single writer key/value store
 //!Uses a rolling hash array mapped trie to index key/value data on top of a hypercore.
 use std::fmt;
-use std::hash::Hash;
+
 use std::path::PathBuf;
 use std::pin::Pin;
 
-use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::stream::FuturesOrdered;
 use futures::task::{Context, Poll};
 use futures::{Future, Stream, StreamExt};
-use hypercore::{Feed, PublicKey, SecretKey, Storage, Store};
+use hypercore::{Feed, PublicKey, Storage, Store};
 use lru::LruCache;
 use prost::Message as ProtoMessage;
 use random_access_disk::RandomAccessDisk;
 use random_access_memory::RandomAccessMemory;
 use random_access_storage::RandomAccess;
-
-use anyhow::anyhow;
 
 use crate::cmd::delete::{Delete, DeleteOptions};
 use crate::cmd::diff::DiffOptions;
@@ -137,12 +134,12 @@ where
         }
     }
 
-    pub async fn diff_checkpoint(&mut self, checkout: impl Into<DiffOptions>) {}
+    pub async fn diff_checkpoint(&mut self, _checkout: impl Into<DiffOptions>) {}
 
     pub async fn diff_other<S>(
         &mut self,
-        checkout: impl Into<DiffOptions>,
-        other: &mut HyperTrie<S>,
+        _checkout: impl Into<DiffOptions>,
+        _other: &mut HyperTrie<S>,
     ) where
         S: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {
@@ -155,7 +152,7 @@ where
 
     pub async fn execute_all<C: TrieCommand>(
         &mut self,
-        mut cmds: impl Iterator<Item = C>,
+        cmds: impl Iterator<Item = C>,
     ) -> Vec<<C as TrieCommand>::Item> {
         let mut results = Vec::new();
         for cmd in cmds {
@@ -262,7 +259,7 @@ where
     }
 
     pub fn history_with_opts(&mut self, opts: impl Into<HistoryOpts>) -> History<T> {
-        let mut opts = opts.into();
+        let opts = opts.into();
         let lte = opts.lte.unwrap_or_else(|| self.head_seq());
 
         History {
@@ -533,7 +530,7 @@ mod tests {
         let mut trie = HyperTrieBuilder::default().ram().await?;
 
         let leaf_a = trie.put("hello/world", b"b").await?;
-        let root = trie.put("hello", b"a").await?;
+        let _root = trie.put("hello", b"a").await?;
         let leaf_b = trie.put("hello/verden", b"c").await?;
         let root = trie.put("hello", b"d").await?;
 

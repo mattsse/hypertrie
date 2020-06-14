@@ -34,7 +34,7 @@ impl Delete {
     }
 
     // TODO put this in an async trait?
-    pub(crate) async fn execute<T>(mut self, db: &mut HyperTrie<T>) -> anyhow::Result<Option<()>>
+    pub(crate) async fn execute<T>(self, db: &mut HyperTrie<T>) -> anyhow::Result<Option<()>>
     where
         T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {
@@ -95,11 +95,7 @@ impl Delete {
         Ok(Some(()))
     }
 
-    async fn splice_closest<T>(
-        &mut self,
-        mut head: Node,
-        db: &mut HyperTrie<T>,
-    ) -> anyhow::Result<Node>
+    async fn splice_closest<T>(&mut self, head: Node, db: &mut HyperTrie<T>) -> anyhow::Result<Node>
     where
         T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {
@@ -120,7 +116,7 @@ impl Delete {
     where
         T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {
-        let put = if let Some(mut closest) = closest {
+        let put = if let Some(closest) = closest {
             let hidden = closest.is_hidden();
             let flags = closest.flags.map(|f| f >> 8).unwrap_or_default();
             let opts = PutOptions::new(closest.key).set_hidden(hidden).flags(flags);
@@ -196,8 +192,6 @@ impl<T: Into<String>> From<T> for DeleteOptions {
 #[cfg(test)]
 mod tests {
     use crate::HyperTrieBuilder;
-
-    use super::*;
 
     #[async_std::test]
     async fn delete() -> Result<(), Box<dyn std::error::Error>> {

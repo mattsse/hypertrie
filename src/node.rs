@@ -1,7 +1,5 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::ops::{Div, Sub};
-use std::path::Path;
 
 use prost::Message;
 
@@ -235,7 +233,7 @@ impl Node {
         Ok(node)
     }
 
-    pub(crate) fn decode(buf: &[u8], seq: u64) -> anyhow::Result<Self> {
+    pub(crate) fn decode(buf: &[u8], _seq: u64) -> anyhow::Result<Self> {
         Ok(Self::from_proto(proto::Node::decode(buf)?)?)
     }
 }

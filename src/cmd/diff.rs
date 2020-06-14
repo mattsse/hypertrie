@@ -78,7 +78,7 @@ where
         unimplemented!()
     }
 
-    async fn get_node(&mut self, seq: u64, top: u64, left: u64) {
+    async fn get_node(&mut self, _seq: u64, _top: u64, _left: u64) {
         loop {
             break;
         }

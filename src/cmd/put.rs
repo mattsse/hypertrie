@@ -291,7 +291,7 @@ impl<T: Into<String>> From<T> for PutOptions {
 impl Into<Put> for PutOptions {
     fn into(self) -> Put {
         let mut node = Node::new(self.key, 0);
-        let mut flags = self.flags << 8;
+        let flags = self.flags << 8;
         let flags = if self.hidden {
             flags | HIDDEN_FLAG
         } else {

@@ -1,4 +1,4 @@
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::{Buf, BytesMut};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Trie(pub Vec<Option<Vec<Option<u64>>>>);
@@ -32,7 +32,7 @@ impl Trie {
         None
     }
 
-    fn fill_up_to(&mut self, mut index: usize) {
+    fn fill_up_to(&mut self, index: usize) {
         while index >= self.len() {
             self.0.push(None);
         }
@@ -104,7 +104,7 @@ impl Trie {
             return Trie(vec![]);
         }
         let remaining = buf.remaining();
-        let mut len = varintbuf::decode(&mut buf);
+        let len = varintbuf::decode(&mut buf);
 
         let mut trie = Trie(Vec::with_capacity(len as usize));
 

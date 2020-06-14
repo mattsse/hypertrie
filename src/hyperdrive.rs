@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use async_std::fs;
 use async_std::prelude::*;
 use futures::FutureExt;
-use hypercore::{generate_keypair, Feed, FeedBuilder, PublicKey, Storage, Store};
+use hypercore::{generate_keypair, Feed, FeedBuilder, Storage, Store};
 use rand::RngCore;
 use random_access_disk::RandomAccessDisk;
 use random_access_storage::RandomAccess;
@@ -41,7 +41,7 @@ where
     /// feed) to load. If the metadata feed is writable, we can immediately load
     /// the content feed from its private key. (Otherwise, we need to read the
     /// feed's metadata block first)
-    pub async fn restore(keypair: String) {}
+    pub async fn restore(_keypair: String) {}
 
     pub async fn write_file(&self) {}
 

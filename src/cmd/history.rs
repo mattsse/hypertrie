@@ -1,7 +1,5 @@
 use std::fmt;
 
-use futures::task::{Context, Poll};
-use random_access_disk::RandomAccessDisk;
 use random_access_storage::RandomAccess;
 
 use crate::node::Node;
@@ -84,7 +82,7 @@ impl Default for HistoryOpts {
 }
 
 impl From<bool> for HistoryOpts {
-    fn from(reverse: bool) -> Self {
+    fn from(_reverse: bool) -> Self {
         HistoryOpts::default().reverse()
     }
 }
@@ -92,8 +90,6 @@ impl From<bool> for HistoryOpts {
 #[cfg(test)]
 mod tests {
     use crate::HyperTrieBuilder;
-
-    use super::*;
 
     #[async_std::test]
     async fn history() -> Result<(), Box<dyn std::error::Error>> {

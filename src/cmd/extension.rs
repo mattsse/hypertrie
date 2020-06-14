@@ -1,5 +1,3 @@
-use prost::Message;
-
 use crate::hypertrie_proto as proto;
 
 pub const MAX_ACTIVE: u64 = 32;
