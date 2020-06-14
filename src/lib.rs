@@ -116,7 +116,7 @@ where
     }
 
     /// Remove the checkout.
-    pub fn remove_checkout(&mut self, version: u64) -> Option<u64> {
+    pub fn remove_checkout(&mut self) -> Option<u64> {
         self.checkout.take()
     }
 
