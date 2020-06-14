@@ -6,7 +6,7 @@ use std::hash::Hash;
 use std::path::PathBuf;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use futures::StreamExt;
+use futures::{Future, Stream, StreamExt};
 use hypercore::{Feed, PublicKey, SecretKey, Storage, Store};
 use lru::LruCache;
 use prost::Message as ProtoMessage;
@@ -20,9 +20,13 @@ use async_trait::async_trait;
 use crate::cmd::delete::{Delete, DeleteOptions};
 use crate::cmd::extension::HypertrieExtension;
 use crate::cmd::get::{Get, GetOptions};
+use crate::cmd::history::{History, HistoryOpts};
 use crate::cmd::put::{Put, PutOptions};
 use crate::hypertrie_proto as proto;
 use crate::node::Node;
+use futures::stream::FuturesOrdered;
+use futures::task::{Context, Poll};
+use std::pin::Pin;
 
 mod hypertrie_proto {
     include!(concat!(env!("OUT_DIR"), "/hypertrie_pb.rs"));
@@ -184,10 +188,45 @@ where
     }
 
     pub fn head_seq(&self) -> u64 {
+        if let Some(checkout) = self.checkout {
+            if checkout > 0 {
+                return checkout - 1;
+            }
+        }
+
         if self.feed.len() < 2 {
             0
         } else {
             self.feed.len() - 1
+        }
+    }
+
+    pub fn iter<'a>(&'a mut self) -> impl Stream<Item = Node> + 'a {
+        HyperTrieStream {
+            db: self,
+            in_progress_queue: FuturesOrdered::new(),
+            seq: 1,
+        }
+    }
+
+    pub fn history_with_opts(&mut self, opts: impl Into<HistoryOpts>) -> History<T> {
+        let mut opts = opts.into();
+        let lte = opts.lte.unwrap_or_else(|| self.head_seq());
+
+        History {
+            db: self,
+            lte,
+            gte: opts.gte,
+            reverse: opts.reverse,
+        }
+    }
+
+    pub fn history(&mut self) -> History<T> {
+        History {
+            lte: self.head_seq(),
+            db: self,
+            gte: 1,
+            reverse: false,
         }
     }
 }
