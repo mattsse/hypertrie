@@ -310,3 +310,14 @@ impl Into<Put> for PutOptions {
         }
     }
 }
+
+impl<K, V> From<(K, V)> for Put
+where
+    K: Into<String>,
+    V: AsRef<[u8]>,
+{
+    fn from((key, val): (K, V)) -> Self {
+        let opts = PutOptions::from(key);
+        opts.into_put_with_value(val.as_ref().to_vec())
+    }
+}

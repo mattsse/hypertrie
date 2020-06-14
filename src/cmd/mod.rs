@@ -9,7 +9,6 @@ use crate::cmd::get::Get;
 use crate::cmd::put::Put;
 use crate::HyperTrie;
 
-pub mod batch;
 pub mod delete;
 pub mod diff;
 pub mod extension;

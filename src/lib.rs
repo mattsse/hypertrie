@@ -174,9 +174,31 @@ where
         Ok(Put::new(opts, value.to_vec()).execute(self).await?)
     }
 
+    /// Insert a a batch of values.
+    pub async fn batch_put(&mut self, puts: Vec<impl Into<Put>>) -> anyhow::Result<Vec<Node>> {
+        let mut nodes = Vec::with_capacity(puts.len());
+        for put in puts {
+            let put = put.into();
+            nodes.push(put.execute(self).await?);
+        }
+        Ok(nodes)
+    }
+
     /// delete a value
     pub async fn delete(&mut self, opts: impl Into<DeleteOptions>) -> anyhow::Result<Option<()>> {
         Ok(Delete::new(opts).execute(self).await?)
+    }
+
+    /// Delete a batch of values.
+    pub async fn batch_delete(
+        &mut self,
+        deletes: Vec<impl Into<DeleteOptions>>,
+    ) -> anyhow::Result<Vec<Option<()>>> {
+        let mut results = Vec::with_capacity(deletes.len());
+        for del in deletes {
+            results.push(self.delete(del).await?);
+        }
+        Ok(results)
     }
 
     async fn ready(&mut self) -> anyhow::Result<()> {
