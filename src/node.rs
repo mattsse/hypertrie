@@ -175,10 +175,11 @@ impl Node {
         }
     }
 
-    pub(crate) fn encode(&self) -> anyhow::Result<Vec<u8>> {
+    pub(crate) fn encode(&mut self) -> anyhow::Result<Vec<u8>> {
         let node = self.as_proto()?;
         let mut buf = Vec::with_capacity(node.encoded_len());
         node.encode(&mut buf)?;
+        self.value = node.value_buffer;
         Ok(buf)
     }
 
@@ -203,11 +204,12 @@ impl Node {
     }
 
     // TODO add encoding option
-    pub(crate) fn as_proto(&self) -> anyhow::Result<proto::Node> {
+    pub(crate) fn as_proto(&mut self) -> anyhow::Result<proto::Node> {
         // TODO shift flags?
+        let value_buffer = self.value.take();
         let mut node = proto::Node {
             key: self.key.clone(),
-            value_buffer: self.value.clone(),
+            value_buffer,
             trie_buffer: None,
             seq: Some(self.seq),
             flags: self.flags,
