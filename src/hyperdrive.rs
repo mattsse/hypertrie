@@ -12,7 +12,7 @@ use random_access_storage::RandomAccess;
 use crate::discovery_key;
 pub use crate::{HyperTrie, HyperTrieBuilder};
 
-const MASTER_KEY_FILENAME: &'static str = "master_key";
+const MASTER_KEY_FILENAME: &str = "master_key";
 
 /// Hyperdrive indexes filenames into a Hypercore. To avoid having to scan
 /// through this entire Hypercore when you want to find a specific file or

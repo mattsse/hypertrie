@@ -109,7 +109,7 @@ where
     }
 }
 
-fn not_in_bucket(bucket: &Vec<Option<u64>>, val: u64, seq: u64) -> bool {
+fn not_in_bucket(bucket: &[Option<u64>], val: u64, seq: u64) -> bool {
     let mut val = val as usize;
     while val < bucket.len() {
         if bucket.get(val).cloned().flatten() == Some(seq) {

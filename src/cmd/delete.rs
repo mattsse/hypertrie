@@ -61,7 +61,7 @@ impl Delete {
             let bucket = head.bucket(i as usize);
 
             if head.path(i) == val {
-                if let Some(bucket) = bucket.clone() {
+                if let Some(bucket) = bucket {
                     if let Some(closest) = Self::first_seq(bucket, val) {
                         self.closest = closest;
                     }
@@ -136,7 +136,7 @@ impl Delete {
         Ok(put.execute(db).await?)
     }
 
-    fn first_seq(bucket: &Vec<Option<u64>>, val: u64) -> Option<u64> {
+    fn first_seq(bucket: &[Option<u64>], val: u64) -> Option<u64> {
         for i in 0..bucket.len() as u64 {
             if i == val {
                 continue;

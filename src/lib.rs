@@ -1,4 +1,5 @@
 #![allow(unused)]
+#![allow(clippy::len_without_is_empty)]
 //! Distributed single writer key/value store
 //!Uses a rolling hash array mapped trie to index key/value data on top of a hypercore.
 use std::fmt;
@@ -39,7 +40,7 @@ pub mod node;
 mod storage;
 mod trie;
 
-pub(crate) const HYPERCORE: &'static [u8] = b"hypercore";
+pub(crate) const HYPERCORE: &[u8] = b"hypercore";
 
 struct MountableHyperTrie<T>
 where
@@ -157,7 +158,7 @@ where
         mut cmds: impl Iterator<Item = C>,
     ) -> Vec<<C as TrieCommand>::Item> {
         let mut results = Vec::new();
-        while let Some(cmd) = cmds.next() {
+        for cmd in cmds {
             let res = self.execute(cmd).await;
             results.push(res);
         }

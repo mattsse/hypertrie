@@ -29,7 +29,7 @@ pub struct Node {
 impl Node {
     #[inline]
     pub fn terminator(idx: u64) -> bool {
-        idx > 0 && idx & 31 == 0
+        idx > 0 && idx.trailing_zeros() >= 5
     }
 
     pub(crate) fn hash_key(key: &str) -> Vec<u8> {
@@ -72,7 +72,7 @@ impl Node {
 
     #[inline]
     pub fn flags(&self) -> Option<u64> {
-        self.flags.clone()
+        self.flags
     }
 
     #[inline]

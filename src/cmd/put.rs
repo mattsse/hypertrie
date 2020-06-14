@@ -81,7 +81,7 @@ impl Put {
             // println!("\ni {}, val {}, head_val {}, seq {}", i, val, head_val, seq);
             let bucket = head.bucket(i as usize);
 
-            if let Some(bucket) = bucket.clone() {
+            if let Some(bucket) = bucket {
                 for j in 0..bucket.len() as u64 {
                     if !check_collision && j == val {
                         continue;
@@ -110,7 +110,7 @@ impl Put {
             self.push(i, head_val, head.seq());
 
             if check_collision {
-                if let Some(bucket) = bucket.clone() {
+                if let Some(bucket) = bucket {
                     // update head collides
                     let mut missing = 1u64;
                     let mut node = None;
@@ -292,11 +292,11 @@ impl Into<Put> for PutOptions {
     fn into(self) -> Put {
         let mut node = Node::new(self.key, 0);
         let mut flags = self.flags << 8;
-        if self.hidden {
-            flags | HIDDEN_FLAG;
+        let flags = if self.hidden {
+            flags | HIDDEN_FLAG
         } else {
-            flags | 0;
-        }
+            flags
+        };
         node.set_flags(flags);
 
         Put {

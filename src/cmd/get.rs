@@ -70,16 +70,14 @@ impl Get {
             let check_collision = Node::terminator(i);
             let val = self.node.path(i);
 
-            if head.path(i) == val {
-                if !check_collision || !self.node.collides(&head, i) {
-                    i += 1;
-                    continue;
-                }
+            if head.path(i) == val && (!check_collision || !self.node.collides(&head, i)) {
+                i += 1;
+                continue;
             }
 
             let bucket = head.bucket(i as usize);
 
-            if let Some(bucket) = bucket.clone() {
+            if let Some(bucket) = bucket {
                 if check_collision {
                     // update head collides
                     let mut missing = 1u64;
