@@ -195,8 +195,9 @@ impl<T: Into<String>> From<T> for DeleteOptions {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::HyperTrieBuilder;
+
+    use super::*;
 
     #[async_std::test]
     async fn delete() -> Result<(), Box<dyn std::error::Error>> {

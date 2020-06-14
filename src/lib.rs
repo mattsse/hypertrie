@@ -4,8 +4,11 @@
 use std::fmt;
 use std::hash::Hash;
 use std::path::PathBuf;
+use std::pin::Pin;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
+use futures::stream::FuturesOrdered;
+use futures::task::{Context, Poll};
 use futures::{Future, Stream, StreamExt};
 use hypercore::{Feed, PublicKey, SecretKey, Storage, Store};
 use lru::LruCache;
@@ -25,9 +28,6 @@ use crate::cmd::put::{Put, PutOptions};
 use crate::cmd::TrieCommand;
 use crate::hypertrie_proto as proto;
 use crate::node::Node;
-use futures::stream::FuturesOrdered;
-use futures::task::{Context, Poll};
-use std::pin::Pin;
 
 mod hypertrie_proto {
     include!(concat!(env!("OUT_DIR"), "/hypertrie_pb.rs"));

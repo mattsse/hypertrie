@@ -91,8 +91,9 @@ impl From<bool> for HistoryOpts {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::HyperTrieBuilder;
+
+    use super::*;
 
     #[async_std::test]
     async fn history() -> Result<(), Box<dyn std::error::Error>> {

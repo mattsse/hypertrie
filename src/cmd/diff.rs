@@ -1,7 +1,9 @@
+use std::fmt;
+
+use random_access_storage::RandomAccess;
+
 use crate::node::Node;
 use crate::HyperTrie;
-use random_access_storage::RandomAccess;
-use std::fmt;
 
 pub struct DiffCheckoutStream<'a, T>
 where
