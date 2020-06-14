@@ -89,4 +89,55 @@ impl From<bool> for HistoryOpts {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::HyperTrieBuilder;
 
+    #[async_std::test]
+    async fn history() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        let init = trie.put("hello", b"world").await?;
+        let mut history = trie.history();
+
+        let node = history.next().await.unwrap();
+        assert_eq!(node.unwrap(), init);
+
+        let node = history.next().await;
+        assert!(node.is_none());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn history_on_empty() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        let mut history = trie.history();
+        let node = history.next().await;
+        assert!(node.is_none());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn history_reverse() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        let hello = trie.put("hello", b"world").await?;
+        let world = trie.put("world", b"hello").await?;
+        let mut history = trie.history_with_opts(false);
+
+        let node = history.next().await.unwrap();
+        assert_eq!(node.unwrap(), world);
+
+        let node = history.next().await.unwrap();
+        assert_eq!(node.unwrap(), hello);
+
+        let node = history.next().await;
+        assert!(node.is_none());
+
+        Ok(())
+    }
+}
