@@ -15,13 +15,14 @@ use random_access_memory::RandomAccessMemory;
 use random_access_storage::RandomAccess;
 
 use anyhow::anyhow;
-use async_trait::async_trait;
 
 use crate::cmd::delete::{Delete, DeleteOptions};
+use crate::cmd::diff::DiffOptions;
 use crate::cmd::extension::HypertrieExtension;
 use crate::cmd::get::{Get, GetOptions};
 use crate::cmd::history::{History, HistoryOpts};
 use crate::cmd::put::{Put, PutOptions};
+use crate::cmd::TrieCommand;
 use crate::hypertrie_proto as proto;
 use crate::node::Node;
 use futures::stream::FuturesOrdered;
@@ -66,25 +67,12 @@ where
     pub async fn put(&mut self) {}
 }
 
-pub enum Command {
-    Get,
-    Delete,
-    Diff,
-    Put,
-}
-
-#[async_trait]
-pub trait TrieCommand {
-    fn process(&mut self, trie: ());
-}
-
 pub struct HyperTrie<T>
 where
     T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
 {
     /// these are all from the metadata feed
     feed: Feed<T>,
-    version: usize,
     /// This is public key of the content feed
     metadata: Option<Vec<u8>>,
     /// cache for seqs
@@ -93,6 +81,7 @@ where
     /// How to encode/decode the value of nodes
     value_encoding: ValueEncoding,
     extension: Option<HypertrieExtension>,
+    checkout: Option<u64>,
 }
 
 impl<T> HyperTrie<T>
@@ -113,18 +102,67 @@ where
         discovery_key(self.key())
     }
 
-    /// Returns a new db instance checked out at the version specified.
-    async fn checkout(self, version: String) {}
+    pub fn version(&self) -> u64 {
+        if let Some(checkout) = self.checkout {
+            checkout
+        } else {
+            self.feed.len()
+        }
+    }
+
+    /// Checked out at the version specified.
+    pub fn set_checkout(&mut self, version: u64) -> Option<u64> {
+        self.checkout.replace(version)
+    }
+
+    /// Remove the checkout.
+    pub fn remove_checkout(&mut self, version: u64) -> Option<u64> {
+        self.checkout.take()
+    }
 
     /// Returns a hypercore replication stream for the db. Pipe this together with another hypertrie instance.
     async fn replicate(self) {}
 
-    /// Same as checkout but just returns the latest version as a checkout.
-    async fn snapshot(self) {
-        // self.checkout(self.version)
+    /// Same as checkout but just sets the latest version as a checkout.
+    pub async fn snapshot(&mut self) -> Option<u64> {
+        self.set_checkout(self.version())
     }
 
-    async fn diff(self) {}
+    pub async fn get_metadata(&mut self) -> anyhow::Result<Option<Vec<u8>>> {
+        if let Some(data) = self.feed.get(0).await? {
+            Ok(proto::Header::decode(&*data)?.metadata)
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn diff_checkpoint(&mut self, checkout: impl Into<DiffOptions>) {}
+
+    pub async fn diff_other<S>(
+        &mut self,
+        checkout: impl Into<DiffOptions>,
+        other: &mut HyperTrie<S>,
+    ) where
+        S: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+    {
+        unimplemented!()
+    }
+
+    pub async fn execute<C: TrieCommand>(&mut self, cmd: C) -> <C as TrieCommand>::Item {
+        cmd.execute(self).await
+    }
+
+    pub async fn execute_all<C: TrieCommand>(
+        &mut self,
+        mut cmds: impl Iterator<Item = C>,
+    ) -> Vec<<C as TrieCommand>::Item> {
+        let mut results = Vec::new();
+        while let Some(cmd) = cmds.next() {
+            let res = self.execute(cmd).await;
+            results.push(res);
+        }
+        results
+    }
 
     /// Lookup a key. Returns a result node if found or `None` otherwise.
     pub async fn get(&mut self, opts: impl Into<GetOptions>) -> anyhow::Result<Option<Node>> {
@@ -151,15 +189,6 @@ where
             self.feed.append(&buf).await?;
         }
         Ok(())
-    }
-
-    pub async fn get_metadata(&mut self) -> anyhow::Result<Option<Vec<u8>>> {
-        let data = self
-            .feed
-            .get(0)
-            .await?
-            .ok_or_else(|| anyhow!("No hypertrie header present."))?;
-        Ok(proto::Header::decode(&*data)?.metadata)
     }
 
     pub async fn get_by_seq(&mut self, seq: u64) -> anyhow::Result<Option<Node>> {
@@ -237,6 +266,7 @@ pub struct HyperTrieBuilder {
     metadata: Option<Vec<u8>>,
     value_encoding: Option<ValueEncoding>,
     extension: Option<HypertrieExtension>,
+    checkout: Option<u64>,
 }
 
 impl HyperTrieBuilder {
@@ -260,6 +290,11 @@ impl HyperTrieBuilder {
         self
     }
 
+    pub fn checkout(mut self, checkout: u64) -> Self {
+        self.checkout = Some(checkout);
+        self
+    }
+
     pub async fn build<T, Cb>(self, create: Cb) -> anyhow::Result<HyperTrie<T>>
     where
         T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
@@ -279,11 +314,11 @@ impl HyperTrieBuilder {
 
         let mut trie = HyperTrie {
             feed,
-            version: 0,
             metadata: self.metadata,
             cache: LruCache::new(self.cache_size),
             value_encoding: self.value_encoding.unwrap_or_default(),
             extension: self.extension,
+            checkout: self.checkout,
         };
         trie.ready().await?;
         Ok(trie)
@@ -305,7 +340,39 @@ impl Default for HyperTrieBuilder {
             metadata: None,
             value_encoding: None,
             extension: None,
+            checkout: None,
         }
+    }
+}
+
+pub struct HyperTrieStream<'a, T>
+where
+    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+{
+    db: &'a mut HyperTrie<T>,
+    in_progress_queue: FuturesOrdered<Pin<Box<dyn Future<Output = Node>>>>,
+    seq: u64,
+}
+
+impl<'a, T> Stream for HyperTrieStream<'a, T>
+where
+    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+{
+    type Item = Node;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        use futures::ready;
+
+        while self.in_progress_queue.len() < 5 {
+            // TODO check len
+        }
+
+        let res = self.in_progress_queue.poll_next_unpin(cx);
+        if let Some(val) = ready!(res) {
+            return Poll::Ready(Some(val));
+        }
+
+        unimplemented!()
     }
 }
 
