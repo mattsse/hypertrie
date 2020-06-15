@@ -1,11 +1,11 @@
 use std::fmt;
 
-use futures::StreamExt;
+use async_trait::async_trait;
 use random_access_storage::RandomAccess;
 
 use crate::cmd::put::{Put, PutOptions};
 use crate::node::{Node, HIDDEN_FLAG};
-use crate::HyperTrie;
+use crate::{HyperTrie, TrieCommand};
 
 #[derive(Clone, Debug)]
 pub struct Delete {
@@ -31,18 +31,6 @@ impl Delete {
 
     pub fn len(&self) -> u64 {
         self.node.len()
-    }
-
-    // TODO put this in an async trait?
-    pub(crate) async fn execute<T>(self, db: &mut HyperTrie<T>) -> anyhow::Result<Option<()>>
-    where
-        T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
-    {
-        if let Some(head) = db.head().await? {
-            Ok(self.update(0, head, db).await?)
-        } else {
-            Ok(None)
-        }
     }
 
     async fn update<T>(
@@ -143,7 +131,34 @@ impl Delete {
         }
         None
     }
+
+    pub async fn execute<T>(mut self, db: &mut HyperTrie<T>) -> anyhow::Result<Option<()>>
+    where
+        T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+    {
+        if let Some(head) = db.head().await? {
+            Ok(self.update(0, head, db).await?)
+        } else {
+            Ok(None)
+        }
+    }
 }
+
+// #[async_trait]
+// impl TrieCommand for Delete {
+//     type Item = anyhow::Result<Option<Node>>;
+//
+//     async fn execute<T>(mut self, db: &mut HyperTrie<T>) -> Self::Item        where
+//             T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+//     {
+//         // Somehow this fails to compile?!?!
+//         {
+//             db.get_by_seq(db.head_seq()).await?;
+//         }
+//         // self.update(0, Node::new("",0 ), db).await?;
+//         Ok(None)
+//     }
+// }
 
 #[derive(Clone, Debug)]
 pub struct DeleteOptions {

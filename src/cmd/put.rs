@@ -1,11 +1,12 @@
 use std::fmt;
 
+use async_trait::async_trait;
 use prost::Message;
 use random_access_storage::RandomAccess;
 
 use crate::node::{Node, HIDDEN_FLAG};
 use crate::trie::Trie;
-use crate::HyperTrie;
+use crate::{HyperTrie, TrieCommand};
 
 #[derive(Clone, Debug)]
 pub struct Put {
@@ -44,24 +45,6 @@ impl Put {
         }
         put.delete = Some(delete);
         put
-    }
-
-    // TODO put this in an async trait?
-    pub(crate) async fn execute<T>(mut self, db: &mut HyperTrie<T>) -> anyhow::Result<Node>
-    where
-        T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
-    {
-        self.head = db.head_seq();
-
-        // TODO handle _sendExt
-
-        if let Some(head) = db.get_by_seq(self.head).await? {
-            Ok(self.update(0, head, db).await?)
-        } else {
-            self.finalize(db).await?;
-            self.node.shift_flags();
-            Ok(self.node)
-        }
     }
 
     async fn update<T>(
@@ -222,6 +205,28 @@ impl Put {
         self.node.set_seq(seq);
         db.feed.append(&self.node.encode()?).await?;
         Ok(seq)
+    }
+}
+
+#[async_trait]
+impl TrieCommand for Put {
+    type Item = anyhow::Result<Node>;
+
+    async fn execute<T>(mut self, db: &mut HyperTrie<T>) -> Self::Item
+    where
+        T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+    {
+        self.head = db.head_seq();
+
+        // TODO handle _sendExt
+
+        if let Some(head) = db.get_by_seq(self.head).await? {
+            Ok(self.update(0, head, db).await?)
+        } else {
+            self.finalize(db).await?;
+            self.node.shift_flags();
+            Ok(self.node)
+        }
     }
 }
 

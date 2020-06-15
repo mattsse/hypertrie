@@ -4,6 +4,7 @@ use std::ops::Range;
 use random_access_storage::RandomAccess;
 
 use crate::cmd::get::{Get, GetOptions};
+use crate::cmd::TrieCommand;
 use crate::node::Node;
 use crate::HyperTrie;
 

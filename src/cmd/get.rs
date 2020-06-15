@@ -3,7 +3,8 @@ use std::fmt;
 use random_access_storage::RandomAccess;
 
 use crate::node::{Node, HIDDEN_FLAG};
-use crate::HyperTrie;
+use crate::{HyperTrie, TrieCommand};
+use async_trait::async_trait;
 
 #[derive(Clone, Debug)]
 pub struct Get {
@@ -37,24 +38,6 @@ impl Get {
             self.node.len() - 1
         } else {
             self.node.len()
-        }
-    }
-
-    // TODO put this in an async trait?
-    pub(crate) async fn execute<T>(mut self, db: &mut HyperTrie<T>) -> anyhow::Result<Option<Node>>
-    where
-        T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
-    {
-        self.head = db.head_seq();
-        if self.head == 0 {
-            return Ok(None);
-        }
-        // TODO handle _sendExt
-
-        if let Some(head) = db.get_by_seq(self.head).await? {
-            Ok(self.update(0, head, db).await?)
-        } else {
-            Ok(None)
         }
     }
 
@@ -141,6 +124,28 @@ impl Get {
         }
         head.shift_flags();
         Ok(Some(head))
+    }
+}
+
+#[async_trait]
+impl TrieCommand for Get {
+    type Item = anyhow::Result<Option<Node>>;
+
+    async fn execute<T>(mut self, db: &mut HyperTrie<T>) -> Self::Item
+    where
+        T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+    {
+        self.head = db.head_seq();
+        if self.head == 0 {
+            return Ok(None);
+        }
+        // TODO handle _sendExt
+
+        if let Some(head) = db.get_by_seq(self.head).await? {
+            Ok(self.update(0, head, db).await?)
+        } else {
+            Ok(None)
+        }
     }
 }
 
