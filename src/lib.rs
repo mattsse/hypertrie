@@ -116,6 +116,17 @@ where
         }
     }
 
+    pub(crate) fn has_seq_in_bucket(&mut self, bucket: &[Option<u64>], val: u64) -> bool {
+        for i in (val as usize..bucket.len()).step_by(5) {
+            if let Some(v) = bucket.get(i).cloned().flatten() {
+                if self.feed.has(v) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     /// Checked out at the version specified.
     pub fn set_checkout(&mut self, version: u64) -> Option<u64> {
         self.checkout.replace(version)
@@ -634,6 +645,60 @@ mod tests {
         let node = trie.get("lorem").await?.unwrap();
         assert_eq!(node.key(), nodes[2].key());
         assert_eq!(node.value(), nodes[2].value());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn hidden_put() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        let put = trie
+            .put(PutOptions::new("hello").hidden(), b"world")
+            .await?;
+
+        let node = trie.get("hello").await?;
+        assert!(node.is_none());
+
+        let node = trie.get(GetOptions::new("hello").hidden()).await?;
+        assert_eq!(node.unwrap(), put);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn hidden_visible_not_collide() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        let hidden = trie
+            .put(PutOptions::new("hello").hidden(), b"hidden")
+            .await?;
+        let not_hidden = trie.put("hello", b"not hidden").await?;
+
+        let node = trie.get("hello").await?.unwrap();
+        assert_eq!(node.key(), not_hidden.key());
+        assert_eq!(node.value(), not_hidden.value());
+
+        let node = trie.get(GetOptions::new("hello").hidden()).await?.unwrap();
+        assert_eq!(node.key(), hidden.key());
+        assert_eq!(node.value(), hidden.value());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn hidden_delete() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrieBuilder::default().ram().await?;
+
+        let hidden = trie
+            .put(PutOptions::new("hello").hidden(), b"hidden")
+            .await?;
+
+        assert!(trie.delete("hello").await?.is_none());
+        assert!(trie
+            .delete(DeleteOptions::new("hello").hidden())
+            .await?
+            .is_some());
 
         Ok(())
     }
