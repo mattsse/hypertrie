@@ -107,6 +107,9 @@ where
         discovery_key(self.key())
     }
 
+    /// The current version of the trie.
+    ///
+    /// If no checkout is set, version equals to the amount of nodes in the storage feed.
     pub fn version(&self) -> u64 {
         if let Some(checkout) = self.checkout {
             checkout
@@ -126,7 +129,7 @@ where
         false
     }
 
-    /// Checked out at the version specified.
+    /// Check out at the version specified.
     pub fn set_checkout(&mut self, version: u64) -> Option<u64> {
         self.checkout.replace(version)
     }
@@ -144,6 +147,7 @@ where
         self.set_checkout(self.version())
     }
 
+    /// Return the metadata that was stored in the root `Header` at index `0` in the feed.
     pub async fn get_metadata(&mut self) -> anyhow::Result<Option<Vec<u8>>> {
         if let Some(data) = self.feed.get(0).await? {
             Ok(proto::Header::decode(&*data)?.metadata)
@@ -152,8 +156,12 @@ where
         }
     }
 
-    pub async fn diff_checkpoint(&mut self, _checkout: impl Into<DiffOptions>) {}
+    /// Compute the differences between this trie and a specific checkout of this trie.
+    pub async fn diff_checkpoint(&mut self, _checkout: impl Into<DiffOptions>) {
+        unimplemented!()
+    }
 
+    /// Compute the differences between this trie and another trie.
     pub async fn diff_other<S>(
         &mut self,
         _checkout: impl Into<DiffOptions>,
@@ -164,10 +172,12 @@ where
         unimplemented!()
     }
 
+    /// Execute a single `TrieCommand`
     pub async fn execute<C: TrieCommand>(&mut self, cmd: C) -> <C as TrieCommand>::Item {
         cmd.execute(self).await
     }
 
+    /// Execute a series of commands and return their results as a new `Vec`
     pub async fn execute_all<C: TrieCommand>(
         &mut self,
         cmds: impl Iterator<Item = C>,
@@ -180,17 +190,118 @@ where
         results
     }
 
-    /// Lookup a key. Returns a result node if found or `None` otherwise.
+    /// Get the node that matches the options (key).
+    ///
+    /// # Examples
+    ///
+    /// Get a node by its key
+    ///
+    /// ```
+    /// # #[async_std::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use hypertrie::{HyperTrieBuilder, PutOptions};
+    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    ///
+    /// let put = trie.put("hello", b"world").await?;
+    ///
+    /// let get = trie.get("hello").await?.unwrap();
+    /// assert_eq!(put, get);
+    ///
+    /// assert_eq!(trie.get("world").await?, None);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Get a hidden node.
+    /// ```
+    /// # #[async_std::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use hypertrie::{HyperTrieBuilder, PutOptions, GetOptions};
+    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    ///
+    /// let node = trie.put(PutOptions::new("hello").hidden(), b"world").await?;
+    /// assert_eq!(trie.get("hello").await?, None);
+    ///
+    /// assert_eq!(trie.get(GetOptions::new("hello").hidden()).await?.unwrap(), node);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn get(&mut self, opts: impl Into<GetOptions>) -> anyhow::Result<Option<Node>> {
         Ok(Get::new(opts).execute(self).await?)
     }
 
-    /// Insert a value.
+    /// Insert a new value in the feed.
+    ///
+    /// # Examples
+    ///
+    /// Insert a basic node with key `hello` and value `world`.
+    /// ```
+    /// # #[async_std::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use hypertrie::HyperTrieBuilder;
+    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    /// let node = trie.put("hello", b"world").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Insert a hidden node.
+    ///
+    /// ```
+    /// # #[async_std::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use hypertrie::{HyperTrieBuilder, PutOptions};
+    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    /// let node = trie.put(PutOptions::new("hello").hidden(), b"world").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn put(&mut self, opts: impl Into<PutOptions>, value: &[u8]) -> anyhow::Result<Node> {
         Ok(Put::new(opts, value.to_vec()).execute(self).await?)
     }
 
-    /// Insert a a batch of values.
+    /// Insert a a series of new values.
+    ///
+    /// # Examples
+    ///
+    /// Insert a series of key, value tuples where values are slices.
+    /// Byte strings work only if each value is the batch is the same size.
+    ///
+    /// ```rust
+    /// # #[async_std::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use hypertrie::{HyperTrieBuilder, PutOptions};
+    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    /// let batch = trie
+    ///     .batch_put(vec![
+    ///         ("hello", &b"world"[..]),
+    ///         ("world", &b"hello"[..]),
+    ///         ("lorem", &b"ipsum"[..]),
+    ///         ("dummy", &b""[..]),
+    ///     ])
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Insert a series of key, value tuples where the value is str
+    ///
+    /// ```rust
+    /// # #[async_std::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use hypertrie::{HyperTrieBuilder, PutOptions};
+    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    /// let batch = trie
+    ///     .batch_put(vec![
+    ///         ("hello", "world"),
+    ///         ("world", "hello"),
+    ///         ("lorem", "ipsum"),
+    ///         ("dummy", ""),
+    ///     ])
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn batch_put(&mut self, puts: Vec<impl Into<Put>>) -> anyhow::Result<Vec<Node>> {
         let mut nodes = Vec::with_capacity(puts.len());
         for put in puts {
@@ -200,12 +311,67 @@ where
         Ok(nodes)
     }
 
-    /// delete a value
+    /// Delete a value from the feed.
+    ///
+    /// # Examples
+    ///
+    /// Delete a basic node
+    /// ```rust
+    /// # #[async_std::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use hypertrie::{HyperTrieBuilder, PutOptions};
+    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    ///
+    /// trie.put("hello", b"world").await?;
+    /// assert_eq!(trie.delete("hello").await?, Some(()));
+    /// assert_eq!(trie.get("hello").await?, None);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Delete a hidden node
+    /// ```rust
+    /// # #[async_std::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use hypertrie::{HyperTrieBuilder, PutOptions, DeleteOptions, GetOptions};
+    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    ///
+    /// let node = trie.put(PutOptions::new("hello").hidden(), b"world").await?;
+    /// assert_eq!(trie.delete("hello").await?, None);
+    /// assert_eq!(trie.get(GetOptions::new("hello").hidden()).await?, Some(node));
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn delete(&mut self, opts: impl Into<DeleteOptions>) -> anyhow::Result<Option<()>> {
         Ok(Delete::new(opts).execute(self).await?)
     }
 
     /// Delete a batch of values.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # #[async_std::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use hypertrie::{HyperTrieBuilder, PutOptions};
+    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    /// let nodes = trie
+    ///     .batch_put(vec![
+    ///         ("hello", b"world"),
+    ///         ("world", b"hello"),
+    ///         ("lorem", b"ipsum"),
+    ///         ("brown", b"doggo"),
+    ///    ])
+    ///     .await?;
+    ///
+    /// let del = trie
+    ///     .batch_delete(vec!["world", "hello", "ipsum", "yellow"])
+    ///     .await?;
+    /// assert_eq!(del, vec![Some(()), Some(()), None, None]);
+    /// assert!(trie.get("hello").await?.is_none());
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn batch_delete(
         &mut self,
         deletes: Vec<impl Into<DeleteOptions>>,
@@ -229,6 +395,7 @@ where
         Ok(())
     }
 
+    ///
     pub async fn get_by_seq(&mut self, seq: u64) -> anyhow::Result<Option<Node>> {
         if seq == 0 {
             // index 0 is always `Header`
@@ -250,10 +417,12 @@ where
         }
     }
 
+    /// Return the latest node in the feed.
     pub async fn head(&mut self) -> anyhow::Result<Option<Node>> {
         Ok(self.get_by_seq(self.head_seq()).await?)
     }
 
+    /// The index of the latest node in the feed.
     pub fn head_seq(&self) -> u64 {
         if let Some(checkout) = self.checkout {
             if checkout > 0 {
@@ -276,6 +445,31 @@ where
         }
     }
 
+    /// Same as [`HyperTrie::history`] but with options.
+    ///
+    /// # Example
+    ///
+    /// History but in reverse order.
+    ///
+    /// ```
+    /// # #[async_std::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use hypertrie::HyperTrieBuilder;
+    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    /// let hello = trie.put("hello", b"world").await?;
+    /// let world = trie.put("world", b"hello").await?;
+    ///
+    /// let mut history = trie.history_with_opts(false);
+    /// let node = history.next().await.unwrap();
+    /// assert_eq!(node.unwrap(), world);
+    ///
+    /// let node = history.next().await.unwrap();
+    /// assert_eq!(node.unwrap(), hello);
+    ///
+    /// let node = history.next().await;
+    /// assert!(node.is_none());
+    /// # Ok(()) }
+    /// ```
     pub fn history_with_opts(&mut self, opts: impl Into<HistoryOpts>) -> History<T> {
         let opts = opts.into();
         let lte = opts.lte.unwrap_or_else(|| self.head_seq());
