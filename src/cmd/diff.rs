@@ -5,6 +5,7 @@ use random_access_storage::RandomAccess;
 use crate::cmd::get::{Get, GetOptions};
 use crate::node::Node;
 use crate::HyperTrie;
+use std::ops::Range;
 
 pub struct DiffCheckoutStream<'a, T>
 where
@@ -16,9 +17,12 @@ where
     target_checkout: u64,
     db_checkout: Option<u64>,
     db: &'a mut HyperTrie<T>,
+    needs_check: Vec<usize>,
     pending: u64,
     prefix: String,
     hidden: bool,
+    skip_right_null: bool,
+    skip_left_null: bool,
 }
 
 impl<'a, T> DiffCheckoutStream<'a, T>
@@ -85,7 +89,85 @@ where
     }
 
     async fn finalize(&mut self) {
+        while !self.needs_check.is_empty() {
+            let end = self.needs_check.pop().unwrap();
+            let start = self.needs_check.pop().unwrap();
+            self.maybe_collides(start..end)
+        }
+
+        // self.next()
         unimplemented!()
+    }
+
+    // all nodes, start -> end, share the same hash
+    // we need to check that there are no collisions
+    fn maybe_collides(&mut self, range: Range<usize>) {
+        // much simpler and *much* more likely - only one node
+        if range.end - range.start == 1 {
+            if let Some(entry) = self.stack.get_mut(range.start).and_then(|top| {
+                if top.collides() {
+                    Some(Entry {
+                        i: top.i,
+                        left: None,
+                        right: top.right.take(),
+                        skip: top.skip,
+                    })
+                } else {
+                    None
+                }
+            }) {
+                self.stack.push(entry);
+            }
+            return;
+        }
+
+        // very unlikely, but multiple collisions or a trie reordering
+        // due to a collision being deleted
+
+        let mut i = range.start;
+        while i < range.end && i < self.stack.len() {
+            let mut top = self.stack.remove(i);
+            let mut swapped = false;
+
+            if top.right.is_some() {
+                for j in i..std::cmp::min(range.end, self.stack.len()) {
+                    let mut other = &mut self.stack[j];
+                    let mut collides = false;
+
+                    if let Some(ref left) = other.left {
+                        if let Some(ref right) = top.right {
+                            collides = left.collides(right, top.i);
+                        }
+                    }
+
+                    if collides {
+                        std::mem::swap(&mut other.right, &mut top.right);
+                        swapped = true;
+                        i -= 1;
+                        break;
+                    }
+                }
+            }
+
+            if !swapped && top.left.is_some() {
+                self.stack.push(Entry {
+                    i: top.i,
+                    left: None,
+                    right: top.right.clone(),
+                    skip: false,
+                });
+            }
+
+            self.stack.insert(i, top);
+            i += i;
+        }
+    }
+
+    fn push_stack(&mut self, len: usize, i: u64) -> Option<&Entry> {
+        if self.stack.len() == len {
+            self.stack.push(Entry::new(i));
+        }
+        self.stack.get(len)
     }
 }
 
@@ -129,6 +211,15 @@ struct Entry {
 }
 
 impl Entry {
+    fn new(i: u64) -> Self {
+        Self {
+            i,
+            left: None,
+            right: None,
+            skip: false,
+        }
+    }
+
     fn collides(&self) -> bool {
         if self.left.is_none() || self.right.is_none() || !Node::terminator(self.i) {
             false
