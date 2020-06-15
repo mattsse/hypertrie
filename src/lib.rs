@@ -1,9 +1,9 @@
 #![allow(unused)]
 #![allow(clippy::len_without_is_empty)]
-//! Distributed single writer key/value store
-//!Uses a rolling hash array mapped trie to index key/value data on top of a hypercore.
+//! Single writer key/value store
+//! Uses a rolling hash array mapped trie to index key/value data.
 use std::fmt;
-
+use std::ops::Range;
 use std::path::PathBuf;
 use std::pin::Pin;
 
@@ -17,16 +17,15 @@ use random_access_disk::RandomAccessDisk;
 use random_access_memory::RandomAccessMemory;
 use random_access_storage::RandomAccess;
 
-use crate::cmd::delete::{Delete, DeleteOptions};
+pub use crate::cmd::delete::{Delete, DeleteOptions};
 use crate::cmd::diff::DiffOptions;
 use crate::cmd::extension::HypertrieExtension;
-use crate::cmd::get::{Get, GetOptions};
-use crate::cmd::history::{History, HistoryOpts};
-use crate::cmd::put::{Put, PutOptions};
-use crate::cmd::TrieCommand;
+pub use crate::cmd::get::{Get, GetOptions};
+pub use crate::cmd::history::{History, HistoryOpts};
+pub use crate::cmd::put::{Put, PutOptions};
+pub use crate::cmd::TrieCommand;
 use crate::hypertrie_proto as proto;
-use crate::node::Node;
-use std::ops::Range;
+pub use crate::node::Node;
 
 mod hypertrie_proto {
     include!(concat!(env!("OUT_DIR"), "/hypertrie_pb.rs"));
@@ -549,7 +548,7 @@ mod tests {
         let mut trie = HyperTrieBuilder::default().ram().await?;
 
         let leaf_a = trie.put("hello/world", b"b").await?;
-        let _root = trie.put("hello", b"a").await?;
+        let _ = trie.put("hello", b"a").await?;
         let leaf_b = trie.put("hello/verden", b"c").await?;
         let root = trie.put("hello", b"d").await?;
 
