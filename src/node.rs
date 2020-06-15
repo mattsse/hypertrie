@@ -8,6 +8,7 @@ use crate::trie::Trie;
 
 pub(crate) const HIDDEN_FLAG: u64 = 1;
 
+// TODO ignore `trie` for `PartialEq`?
 #[derive(Debug, Clone, PartialEq)]
 pub struct Node {
     /// hypertrie key
@@ -132,6 +133,12 @@ impl Node {
     }
 
     #[inline]
+    /// The flags are shifted in order to both hide the internal flags and support user-defined flags.
+    pub(crate) fn shift_flags(&mut self) {
+        self.flags = self.flags.map(|f| f >> 8)
+    }
+
+    #[inline]
     pub fn compare(&self, other: &Node) -> i64 {
         let min = std::cmp::min(self.len(), other.len());
         for i in 0..min {
@@ -203,7 +210,6 @@ impl Node {
 
     // TODO add encoding option
     pub(crate) fn as_proto(&mut self) -> anyhow::Result<proto::Node> {
-        // TODO shift flags?
         let value_buffer = self.value.take();
         let mut node = proto::Node {
             key: self.key.clone(),

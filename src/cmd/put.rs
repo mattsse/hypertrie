@@ -59,6 +59,7 @@ impl Put {
             Ok(self.update(0, head, db).await?)
         } else {
             self.finalize(db).await?;
+            self.node.shift_flags();
             Ok(self.node)
         }
     }

@@ -26,6 +26,7 @@ use crate::cmd::put::{Put, PutOptions};
 use crate::cmd::TrieCommand;
 use crate::hypertrie_proto as proto;
 use crate::node::Node;
+use std::ops::Range;
 
 mod hypertrie_proto {
     include!(concat!(env!("OUT_DIR"), "/hypertrie_pb.rs"));
@@ -50,11 +51,11 @@ impl<T> MountableHyperTrie<T>
 where
     T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug,
 {
-    pub fn get_feed(&self) -> &Feed<T> {
+    pub fn feed(&self) -> &Feed<T> {
         &self.feed
     }
 
-    pub fn get_feed_mut(&mut self) -> &mut Feed<T> {
+    pub fn feed_mut(&mut self) -> &mut Feed<T> {
         &mut self.feed
     }
 
@@ -74,7 +75,6 @@ where
     /// This is public key of the content feed
     metadata: Option<Vec<u8>>,
     /// cache for seqs
-    // TODO what's the value here? `valueBuffer` from a node?
     cache: LruCache<u64, Node>,
     /// How to encode/decode the value of nodes
     value_encoding: ValueEncoding,
@@ -93,6 +93,14 @@ where
     /// Returns the db public key. You need to pass this to other instances you want to replicate with.
     pub fn key(&self) -> &PublicKey {
         self.feed.public_key()
+    }
+
+    pub fn feed(&self) -> &Feed<T> {
+        &self.feed
+    }
+
+    pub fn feed_mut(&mut self) -> &mut Feed<T> {
+        &mut self.feed
     }
 
     /// Returns the db discovery key. Can be used to find other db peers.

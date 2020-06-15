@@ -2,7 +2,7 @@ use std::fmt;
 
 use random_access_storage::RandomAccess;
 
-use crate::node::Node;
+use crate::node::{Node, HIDDEN_FLAG};
 use crate::HyperTrie;
 
 #[derive(Clone, Debug)]
@@ -18,7 +18,11 @@ pub struct Get {
 impl Get {
     pub fn new(opts: impl Into<GetOptions>) -> Self {
         let opts = opts.into();
-        let node = Node::new(opts.key, 0);
+        let mut node = Node::new(opts.key, 0);
+        if opts.hidden {
+            node.set_flags(HIDDEN_FLAG);
+        }
+
         Self {
             node,
             closest: opts.closest,
@@ -129,11 +133,13 @@ impl Get {
                 }
             }
             return if self.closest {
+                head.shift_flags();
                 Ok(Some(head))
             } else {
                 Ok(None)
             };
         }
+        head.shift_flags();
         Ok(Some(head))
     }
 }
