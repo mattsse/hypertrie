@@ -8,7 +8,7 @@ Distributed single writer key/value store.
 
 A wip rust implementation of [hypertrie](https://github.com/hypercore-protocol/hypertrie) that uses a rolling hash array mapped trie to index key/value data.
 
-Full docs available on [doc.rs][https://docs.rs/hypertrie]
+Full docs available on [doc.rs](https://docs.rs/hypertrie)
 
 ## Usage
 
