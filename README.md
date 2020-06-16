@@ -24,7 +24,7 @@ let get = trie.get("hello").await?.unwrap();
 assert_eq!(hello, get);
 
 trie.delete("hello").await?;
-let get = trie.get("hello").await?.unwrap();
+let get = trie.get("hello").await?;
 assert_eq!(None, get);
 
 let get = trie.get("hello/world").await?.unwrap();
