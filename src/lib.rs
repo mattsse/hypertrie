@@ -33,37 +33,13 @@ mod hypertrie_proto {
 
 pub mod cmd;
 mod hyperdrive;
+mod iter;
+mod mount;
 pub mod node;
 mod storage;
 mod trie;
 
 pub(crate) const HYPERCORE: &[u8] = b"hypercore";
-
-struct MountableHyperTrie<T>
-where
-    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug,
-{
-    feed: Feed<T>,
-}
-
-impl<T> MountableHyperTrie<T>
-where
-    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug,
-{
-    pub fn feed(&self) -> &Feed<T> {
-        &self.feed
-    }
-
-    pub fn feed_mut(&mut self) -> &mut Feed<T> {
-        &mut self.feed
-    }
-
-    pub async fn get(&self) {}
-
-    async fn mount(&self) {}
-
-    pub async fn put(&mut self) {}
-}
 
 pub struct HyperTrie<T>
 where
