@@ -84,9 +84,10 @@ where
     }
 
     async fn get_node(&mut self, _seq: u64, _top: u64, _left: u64) {
-        loop {
-            break;
-        }
+        unimplemented!()
+        // loop {
+        //     break;
+        // }
     }
 
     async fn finalize(&mut self) {
@@ -131,7 +132,8 @@ where
             let mut swapped = false;
 
             if top.right.is_some() {
-                for j in i..std::cmp::min(range.end, self.stack.len()) {
+                let from = i;
+                for j in from..std::cmp::min(range.end, self.stack.len()) {
                     let mut other = &mut self.stack[j];
                     let mut collides = false;
 
