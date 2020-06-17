@@ -35,13 +35,18 @@ impl Node {
         hash_sip24(split_key(key))
     }
 
-    pub fn new(key: impl Into<String>, seq: u64) -> Self {
+    pub fn normalize_key(key: impl Into<String>) -> String {
         let key = key.into();
-        let key = if key.starts_with('/') {
-            key.replacen('/', "", 1)
+        let s = key.trim_start();
+        if s.starts_with('/') {
+            s.replacen('/', "", 1)
         } else {
             key
-        };
+        }
+    }
+
+    pub fn new(key: impl Into<String>, seq: u64) -> Self {
+        let key = Self::normalize_key(key);
         let hash = Self::hash_key(&key);
         Self {
             key,
