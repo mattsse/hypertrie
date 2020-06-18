@@ -113,14 +113,12 @@ impl Get {
                 }
             }
             return if self.closest {
-                head.shift_flags();
-                Ok(Some(head))
+                Ok(Some(head.finalize()))
             } else {
                 Ok(None)
             };
         }
-        head.shift_flags();
-        Ok(Some(head))
+        Ok(Some(head.finalize()))
     }
 }
 

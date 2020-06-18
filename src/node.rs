@@ -137,10 +137,16 @@ impl Node {
         }
     }
 
-    #[inline]
     /// The flags are shifted in order to both hide the internal flags and support user-defined flags.
+    #[inline]
     pub(crate) fn shift_flags(&mut self) {
         self.flags = self.flags.map(|f| f >> 8)
+    }
+
+    /// Utility function to shift the flags and return self
+    pub(crate) fn finalize(mut self) -> Self {
+        self.shift_flags();
+        self
     }
 
     #[inline]
@@ -254,7 +260,7 @@ fn hash<'a>(keys: impl Iterator<Item = &'a str>) -> Vec<u8> {
     let mut hash = Vec::new();
     for key in keys {
         let mut h = DefaultHasher::default();
-        key.hash(&mut h);
+        h.write(key.as_bytes());
         hash.extend_from_slice(&u64::to_le_bytes(h.finish())[..]);
     }
     hash
