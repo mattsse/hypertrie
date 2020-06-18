@@ -12,8 +12,6 @@ pub struct Get {
     closest: bool,
     prefix: bool,
     hidden: bool,
-    // TODO needed?
-    head: u64,
 }
 
 impl Get {
@@ -29,7 +27,6 @@ impl Get {
             closest: opts.closest,
             prefix: opts.prefix,
             hidden: opts.hidden,
-            head: 0,
         }
     }
 
@@ -135,13 +132,13 @@ impl TrieCommand for Get {
     where
         T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {
-        self.head = db.head_seq();
-        if self.head == 0 {
+        let head = db.head_seq();
+        if head == 0 {
             return Ok(None);
         }
         // TODO handle _sendExt
 
-        if let Some(head) = db.get_by_seq(self.head).await? {
+        if let Some(head) = db.get_by_seq(head).await? {
             Ok(self.update(0, head, db).await?)
         } else {
             Ok(None)
