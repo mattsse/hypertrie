@@ -62,7 +62,6 @@ impl Put {
             let check_collision = Node::terminator(i);
             let val = self.node.path(i);
             let head_val = head.path(i);
-            // println!("\ni {}, val {}, head_val {}, seq {}", i, val, head_val, seq);
             let bucket = head.bucket(i as usize);
 
             if let Some(bucket) = bucket {
@@ -86,7 +85,6 @@ impl Put {
             // if no collision is possible
             if head_val == val && (!check_collision || !self.node.collides(&head, i)) {
                 i += 1;
-                // dbg!("continue");
                 continue;
             }
 
@@ -152,7 +150,6 @@ impl Put {
     }
 
     fn push(&mut self, i: u64, mut val: u64, seq: u64) {
-        // println!("index {} val {} seq {}", i, val, seq);
         if Some(seq) == self.delete {
             return;
         }
@@ -166,7 +163,6 @@ impl Put {
         while bucket.len() as u64 > val && bucket.get(val as usize).cloned().flatten().is_some() {
             val += 5
         }
-        // println!("val index {}", val);
         if !bucket.contains(&Some(seq)) {
             Trie::insert_value(val as usize, seq, bucket);
         }
@@ -182,7 +178,6 @@ impl Put {
     where
         T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {
-        // dbg!("push_collidable");
         if Some(seq) == self.delete {
             return Ok(());
         }
