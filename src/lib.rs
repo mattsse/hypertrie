@@ -7,9 +7,6 @@ use std::ops::Range;
 use std::path::PathBuf;
 use std::pin::Pin;
 
-use futures::stream::FuturesOrdered;
-use futures::task::{Context, Poll};
-use futures::{Future, Stream, StreamExt};
 use hypercore::{Feed, PublicKey, Storage, Store};
 use lru::LruCache;
 use prost::Message as ProtoMessage;
@@ -25,6 +22,7 @@ pub use crate::cmd::history::{History, HistoryOpts};
 pub use crate::cmd::put::{Put, PutOptions};
 pub use crate::cmd::TrieCommand;
 use crate::hypertrie_proto as proto;
+use crate::iter::HyperTrieIterator;
 pub use crate::node::Node;
 
 mod hypertrie_proto {
@@ -413,12 +411,8 @@ where
         }
     }
 
-    pub fn iter<'a>(&'a mut self) -> impl Stream<Item = Node> + 'a {
-        HyperTrieStream {
-            db: self,
-            in_progress_queue: FuturesOrdered::new(),
-            seq: 1,
-        }
+    pub fn iter(&mut self) -> HyperTrieIterator<T> {
+        unimplemented!()
     }
 
     /// Same as [`HyperTrie::history`] but with options.
@@ -550,37 +544,6 @@ impl Default for HyperTrieBuilder {
             extension: None,
             checkout: None,
         }
-    }
-}
-
-pub struct HyperTrieStream<'a, T>
-where
-    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
-{
-    db: &'a mut HyperTrie<T>,
-    in_progress_queue: FuturesOrdered<Pin<Box<dyn Future<Output = Node>>>>,
-    seq: u64,
-}
-
-impl<'a, T> Stream for HyperTrieStream<'a, T>
-where
-    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
-{
-    type Item = Node;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        use futures::ready;
-
-        while self.in_progress_queue.len() < 5 {
-            // TODO check len
-        }
-
-        let res = self.in_progress_queue.poll_next_unpin(cx);
-        if let Some(val) = ready!(res) {
-            return Poll::Ready(Some(val));
-        }
-
-        unimplemented!()
     }
 }
 
