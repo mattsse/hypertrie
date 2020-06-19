@@ -206,11 +206,11 @@ impl<T: Into<String>> From<T> for DeleteOptions {
 
 #[cfg(test)]
 mod tests {
-    use crate::HyperTrieBuilder;
+    use crate::HyperTrie;
 
     #[async_std::test]
     async fn delete() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         trie.put("/hello", b"world").await?;
         assert_eq!(trie.delete("hello").await?, Some(()));
@@ -221,7 +221,7 @@ mod tests {
 
     #[async_std::test]
     async fn delete_empty() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
         assert_eq!(trie.get("hello").await?, None);
         Ok(())
     }

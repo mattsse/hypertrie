@@ -89,11 +89,11 @@ impl From<bool> for HistoryOpts {
 
 #[cfg(test)]
 mod tests {
-    use crate::HyperTrieBuilder;
+    use crate::HyperTrie;
 
     #[async_std::test]
     async fn history() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let init = trie.put("hello", b"world").await?;
         let mut history = trie.history();
@@ -109,7 +109,7 @@ mod tests {
 
     #[async_std::test]
     async fn history_on_empty() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let mut history = trie.history();
         let node = history.next().await;
@@ -120,7 +120,7 @@ mod tests {
 
     #[async_std::test]
     async fn history_reverse() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let hello = trie.put("hello", b"world").await?;
         let world = trie.put("world", b"hello").await?;

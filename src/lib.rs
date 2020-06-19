@@ -173,8 +173,8 @@ where
     /// ```
     /// # #[async_std::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use hypertrie::{HyperTrieBuilder, PutOptions};
-    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    /// # use hypertrie::{HyperTrie, PutOptions};
+    /// let mut trie = HyperTrie::ram().await?;
     ///
     /// let put = trie.put("hello", b"world").await?;
     ///
@@ -190,8 +190,8 @@ where
     /// ```
     /// # #[async_std::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use hypertrie::{HyperTrieBuilder, PutOptions, GetOptions};
-    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    /// # use hypertrie::{HyperTrie, PutOptions, GetOptions};
+    /// let mut trie = HyperTrie::ram().await?;
     ///
     /// let node = trie.put(PutOptions::new("hello").hidden(), b"world").await?;
     /// assert_eq!(trie.get("hello").await?, None);
@@ -212,8 +212,7 @@ where
     /// ```
     /// # #[async_std::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use hypertrie::HyperTrieBuilder;
-    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    /// let mut trie = hypertrie::HyperTrie::ram().await?;
     /// let node = trie.put("hello", b"world").await?;
     /// # Ok(())
     /// # }
@@ -224,8 +223,8 @@ where
     /// ```
     /// # #[async_std::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use hypertrie::{HyperTrieBuilder, PutOptions};
-    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    /// # use hypertrie::{HyperTrie, PutOptions};
+    /// let mut trie = HyperTrie::ram().await?;
     /// let node = trie.put(PutOptions::new("hello").hidden(), b"world").await?;
     /// # Ok(())
     /// # }
@@ -244,8 +243,8 @@ where
     /// ```rust
     /// # #[async_std::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use hypertrie::{HyperTrieBuilder, PutOptions};
-    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    /// # use hypertrie::{HyperTrie, PutOptions};
+    /// let mut trie = HyperTrie::ram().await?;
     /// let batch = trie
     ///     .batch_put(vec![
     ///         ("hello", &b"world"[..]),
@@ -263,8 +262,8 @@ where
     /// ```rust
     /// # #[async_std::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use hypertrie::{HyperTrieBuilder, PutOptions};
-    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    /// # use hypertrie::{HyperTrie, PutOptions};
+    /// let mut trie = HyperTrie::ram().await?;
     /// let batch = trie
     ///     .batch_put(vec![
     ///         ("hello", "world"),
@@ -293,8 +292,8 @@ where
     /// ```rust
     /// # #[async_std::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use hypertrie::{HyperTrieBuilder, PutOptions};
-    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    /// # use hypertrie::{HyperTrie, PutOptions};
+    /// let mut trie = HyperTrie::ram().await?;
     ///
     /// trie.put("hello", b"world").await?;
     /// assert_eq!(trie.delete("hello").await?, Some(()));
@@ -307,8 +306,8 @@ where
     /// ```rust
     /// # #[async_std::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use hypertrie::{HyperTrieBuilder, PutOptions, DeleteOptions, GetOptions};
-    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    /// # use hypertrie::{HyperTrie, PutOptions, DeleteOptions, GetOptions};
+    /// let mut trie = HyperTrie::ram().await?;
     ///
     /// let node = trie.put(PutOptions::new("hello").hidden(), b"world").await?;
     /// assert_eq!(trie.delete("hello").await?, None);
@@ -327,8 +326,8 @@ where
     /// ```rust
     /// # #[async_std::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use hypertrie::{HyperTrieBuilder, PutOptions};
-    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    /// # use hypertrie::{HyperTrie, PutOptions};
+    /// let mut trie = HyperTrie::ram().await?;
     /// let nodes = trie
     ///     .batch_put(vec![
     ///         ("hello", b"world"),
@@ -424,8 +423,7 @@ where
     /// ```
     /// # #[async_std::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # use hypertrie::HyperTrieBuilder;
-    /// let mut trie = HyperTrieBuilder::default().ram().await?;
+    /// let mut trie = hypertrie::HyperTrie::ram().await?;
     /// let hello = trie.put("hello", b"world").await?;
     /// let world = trie.put("world", b"hello").await?;
     ///
@@ -587,7 +585,7 @@ mod tests {
 
     #[async_std::test]
     async fn basic_put_get() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let put = trie.put("hello", b"world").await?;
         let get = trie.get("hello").await?.unwrap();
@@ -598,7 +596,7 @@ mod tests {
 
     #[async_std::test]
     async fn get_on_empty() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
         let get = trie.get("hello").await?;
         assert!(get.is_none());
 
@@ -607,7 +605,7 @@ mod tests {
 
     #[async_std::test]
     async fn ignore_leading_slash() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let put = trie.put("/hello", b"world").await?;
         let get = trie.get("/hello").await?.unwrap();
@@ -621,7 +619,7 @@ mod tests {
 
     #[async_std::test]
     async fn multiple_put_get() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let hello_put = trie.put("/hello", b"world").await?;
         let world_put = trie.put("world", b"hello").await?;
@@ -640,7 +638,7 @@ mod tests {
 
     #[async_std::test]
     async fn overwrite() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let put = trie.put("/hello", b"world").await?;
         let get = trie.get("hello").await?.unwrap();
@@ -655,7 +653,7 @@ mod tests {
 
     #[async_std::test]
     async fn put_in_tree() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let root = trie.put("hello", b"a").await?;
         let leaf = trie.put("hello/world", b"b").await?;
@@ -675,7 +673,7 @@ mod tests {
 
     #[async_std::test]
     async fn put_in_tree_reverse() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let leaf = trie.put("hello/world", b"b").await?;
         let root = trie.put("hello", b"a").await?;
@@ -691,7 +689,7 @@ mod tests {
 
     #[async_std::test]
     async fn multiple_put_in_tree() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let leaf_a = trie.put("hello/world", b"b").await?;
         let _ = trie.put("hello", b"a").await?;
@@ -712,7 +710,7 @@ mod tests {
 
     #[async_std::test]
     async fn insert_many() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let num = 100u64;
 
@@ -732,7 +730,7 @@ mod tests {
 
     #[async_std::test]
     async fn siphash_collision() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let a = trie.put("idgcmnmna", b"a").await?;
         let b = trie.put("mpomeiehc", b"b").await?;
@@ -748,7 +746,7 @@ mod tests {
 
     #[async_std::test]
     async fn batch_put() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let batch = trie
             .batch_put(vec![
@@ -770,7 +768,7 @@ mod tests {
 
     #[async_std::test]
     async fn batch_delete() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let nodes = trie
             .batch_put(vec![
@@ -796,7 +794,7 @@ mod tests {
 
     #[async_std::test]
     async fn hidden_put() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let put = trie
             .put(PutOptions::new("hello").hidden(), b"world")
@@ -813,7 +811,7 @@ mod tests {
 
     #[async_std::test]
     async fn hidden_visible_not_collide() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let hidden = trie
             .put(PutOptions::new("hello").hidden(), b"hidden")
@@ -833,7 +831,7 @@ mod tests {
 
     #[async_std::test]
     async fn hidden_delete() -> Result<(), Box<dyn std::error::Error>> {
-        let mut trie = HyperTrieBuilder::default().ram().await?;
+        let mut trie = HyperTrie::ram().await?;
 
         let hidden = trie
             .put(PutOptions::new("hello").hidden(), b"hidden")
