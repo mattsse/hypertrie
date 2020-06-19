@@ -4,7 +4,7 @@
 //! Uses a rolling hash array mapped trie to index key/value data.
 use std::fmt;
 use std::ops::Range;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
 use hypercore::{Feed, PublicKey, Storage, Store};
@@ -462,6 +462,18 @@ where
     }
 }
 
+impl HyperTrie<RandomAccessMemory> {
+    pub async fn ram() -> anyhow::Result<HyperTrie<RandomAccessMemory>> {
+        Ok(HyperTrieBuilder::default().ram().await?)
+    }
+}
+
+impl HyperTrie<RandomAccessDisk> {
+    pub async fn disk(dir: impl AsRef<Path>) -> anyhow::Result<HyperTrie<RandomAccessDisk>> {
+        Ok(HyperTrieBuilder::default().disk(dir).await?)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct HyperTrieBuilder {
     cache_size: usize,
@@ -530,8 +542,9 @@ impl HyperTrieBuilder {
         Ok(self.with_storage(Storage::new_memory().await?).await?)
     }
 
-    pub async fn disk(self, dir: &PathBuf) -> anyhow::Result<HyperTrie<RandomAccessDisk>> {
-        Ok(self.with_storage(Storage::new_disk(dir).await?).await?)
+    pub async fn disk(self, dir: impl AsRef<Path>) -> anyhow::Result<HyperTrie<RandomAccessDisk>> {
+        let dir = dir.as_ref().to_path_buf();
+        Ok(self.with_storage(Storage::new_disk(&dir).await?).await?)
     }
 }
 
