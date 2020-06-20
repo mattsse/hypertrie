@@ -1,8 +1,9 @@
-use crate::{Get, GetOptions, HyperTrie, Node, TrieCommand};
-use rand::Rng;
-use random_access_storage::RandomAccess;
 use std::fmt;
 use std::ops::Range;
+
+use random_access_storage::RandomAccess;
+
+use crate::{Get, GetOptions, HyperTrie, Node, TrieCommand};
 
 const SORT_ORDER: [u64; 5] = [3, 2, 1, 0, 4];
 const REVERSE_SORT_ORDER: [u64; 5] = [4, 0, 1, 2, 3];
@@ -32,7 +33,7 @@ where
     T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
 {
     pub fn new(opts: impl Into<IteratorOpts>, db: &'a mut HyperTrie<T>) -> Self {
-        let mut opts = opts.into();
+        let opts = opts.into();
 
         let mut flags = if opts.recursive { 1 } else { 0 };
 
@@ -194,7 +195,7 @@ where
     }
     #[inline]
     fn random_order() -> [u64; 5] {
-        use rand::{seq::SliceRandom, RngCore};
+        use rand::seq::SliceRandom;
         let mut order = [0, 1, 2, 3, 4];
         order.shuffle(&mut rand::thread_rng());
         order
@@ -305,9 +306,9 @@ impl<T: Into<String>> From<T> for IteratorOpts {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{HyperTrieBuilder, PutOptions};
     use std::collections::HashMap;
+
+    use super::*;
 
     fn to_map(vals: impl IntoIterator<Item = Node>) -> HashMap<String, Option<Vec<u8>>> {
         vals.into_iter().map(|n| (n.key, n.value)).collect()
@@ -316,7 +317,7 @@ mod tests {
     #[async_std::test]
     async fn basic_iter() -> Result<(), Box<dyn std::error::Error>> {
         let mut trie = HyperTrie::ram().await?;
-        let mut nodes = trie
+        let nodes = trie
             .batch_put(vec![("a", b"a"), ("b", b"b"), ("c", b"c")])
             .await?;
 

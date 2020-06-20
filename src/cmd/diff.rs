@@ -134,7 +134,7 @@ where
             if top.right.is_some() {
                 let from = i;
                 for j in from..std::cmp::min(range.end, self.stack.len()) {
-                    let mut other = &mut self.stack[j];
+                    let other = &mut self.stack[j];
                     let mut collides = false;
 
                     if let Some(ref left) = other.left {

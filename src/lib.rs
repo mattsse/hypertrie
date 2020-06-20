@@ -3,9 +3,7 @@
 //! Single writer key/value store
 //! Uses a rolling hash array mapped trie to index key/value data.
 use std::fmt;
-use std::ops::Range;
-use std::path::{Path, PathBuf};
-use std::pin::Pin;
+use std::path::Path;
 
 use hypercore::{Feed, PublicKey, Storage, Store};
 use lru::LruCache;
@@ -850,7 +848,7 @@ mod tests {
     async fn hidden_delete() -> Result<(), Box<dyn std::error::Error>> {
         let mut trie = HyperTrie::ram().await?;
 
-        let hidden = trie
+        let _hidden = trie
             .put(PutOptions::new("hello").hidden(), b"hidden")
             .await?;
 

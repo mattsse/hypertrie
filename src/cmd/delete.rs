@@ -1,6 +1,5 @@
 use std::fmt;
 
-use async_trait::async_trait;
 use random_access_storage::RandomAccess;
 
 use crate::cmd::put::{Put, PutOptions};
@@ -132,7 +131,7 @@ impl Delete {
         None
     }
 
-    pub async fn execute<T>(mut self, db: &mut HyperTrie<T>) -> anyhow::Result<Option<()>>
+    pub async fn execute<T>(self, db: &mut HyperTrie<T>) -> anyhow::Result<Option<()>>
     where
         T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
     {

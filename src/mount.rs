@@ -1,8 +1,10 @@
-use crate::{discovery_key, HyperTrie};
-use hypercore::{Feed, PublicKey};
-use random_access_storage::RandomAccess;
 use std::collections::HashMap;
 use std::fmt;
+
+use hypercore::PublicKey;
+use random_access_storage::RandomAccess;
+
+use crate::HyperTrie;
 
 mod mount_proto {
     include!(concat!(env!("OUT_DIR"), "/mount_pb.rs"));
@@ -36,10 +38,10 @@ where
 
     /// - `path` is the mountpoint
     /// - `key` is the key for the `MountableHypertrie` to be mounted at `path`
-    async fn mount(&mut self, path: impl Into<MountOps>, key: PublicKey) {}
+    async fn mount(&mut self, _path: impl Into<MountOps>, _key: PublicKey) {}
 
     /// Remove a mount from a mountpoint
-    async fn delete(&mut self, path: &str) {}
+    async fn delete(&mut self, _path: &str) {}
 
     pub async fn put(&mut self) {}
 }

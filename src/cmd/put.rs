@@ -1,8 +1,9 @@
 use std::fmt;
 
-use async_trait::async_trait;
 use prost::Message;
 use random_access_storage::RandomAccess;
+
+use async_trait::async_trait;
 
 use crate::node::{Node, HIDDEN_FLAG};
 use crate::trie::Trie;

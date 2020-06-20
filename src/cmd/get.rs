@@ -2,9 +2,10 @@ use std::fmt;
 
 use random_access_storage::RandomAccess;
 
+use async_trait::async_trait;
+
 use crate::node::{Node, HIDDEN_FLAG};
 use crate::{HyperTrie, TrieCommand};
-use async_trait::async_trait;
 
 #[derive(Clone, Debug)]
 pub struct Get {
