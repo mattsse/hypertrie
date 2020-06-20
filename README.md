@@ -13,9 +13,8 @@ Full docs available on [docs.rs](https://docs.rs/hypertrie)
 ## Usage
 
 ```rust
-use hypertrie::*;
 
-let mut trie = HyperTrieBuilder::default().ram().await?;
+let mut trie = hypertrie::HyperTrie::ram().await?;
 
 let hello = trie.put("hello", b"world").await?;
 let world = trie.put("hello/world", b"b").await?;
