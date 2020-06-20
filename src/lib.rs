@@ -22,7 +22,7 @@ pub use crate::cmd::history::{History, HistoryOpts};
 pub use crate::cmd::put::{Put, PutOptions};
 pub use crate::cmd::TrieCommand;
 use crate::hypertrie_proto as proto;
-use crate::iter::HyperTrieIterator;
+use crate::iter::{HyperTrieIterator, IteratorOpts};
 pub use crate::node::Node;
 
 mod hypertrie_proto {
@@ -410,8 +410,12 @@ where
         }
     }
 
+    pub fn iter_with_options(&mut self, opts: impl Into<IteratorOpts>) -> HyperTrieIterator<T> {
+        HyperTrieIterator::new(opts, self)
+    }
+
     pub fn iter(&mut self) -> HyperTrieIterator<T> {
-        unimplemented!()
+        HyperTrieIterator::new(IteratorOpts::default(), self)
     }
 
     /// Same as [`HyperTrie::history`] but with options.
