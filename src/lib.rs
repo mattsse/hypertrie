@@ -604,6 +604,19 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn get_on_prefix() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrie::ram().await?;
+
+        let node = trie.put("a", b"a").await?;
+        assert_eq!(None, trie.get("").await?);
+
+        let get = trie.get(GetOptions::new("").prefix()).await?;
+        assert_eq!(Some(node), get);
+
+        Ok(())
+    }
+
+    #[async_std::test]
     async fn ignore_leading_slash() -> Result<(), Box<dyn std::error::Error>> {
         let mut trie = HyperTrie::ram().await?;
 
