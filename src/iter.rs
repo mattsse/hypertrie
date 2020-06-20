@@ -262,19 +262,30 @@ impl IteratorOpts {
         self
     }
 
-    pub fn gt(mut self, gt: u64) -> Self {
-        self.gt = Some(gt);
+    pub fn gt(mut self, gt: bool) -> Self {
+        self.gt = gt;
         self
     }
 
-    pub fn recursive(mut self, recursive: u64) -> Self {
-        self.recursive = Some(recursive);
+    pub fn set_recursive(mut self, recursive: bool) -> Self {
+        self.recursive = recursive;
         self
     }
 
-    pub fn reverse(mut self, reverse: u64) -> Self {
-        self.reverse = Some(reverse);
+    pub fn reverse(mut self) -> Self {
+        self.reverse = true;
         self
+    }
+
+    pub fn random(mut self) -> Self {
+        self.random = true;
+        self
+    }
+}
+
+impl Default for IteratorOpts {
+    fn default() -> Self {
+        Self::from("")
     }
 }
 
@@ -283,12 +294,132 @@ impl<T: Into<String>> From<T> for IteratorOpts {
         Self {
             prefix: prefix.into(),
             flags: None,
-            order: None,
-            recursive: None,
-            reverse: None,
-            gt: None,
-            hidden: None,
+            reverse: false,
+            recursive: true,
+            gt: false,
+            hidden: false,
             random: false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{HyperTrieBuilder, PutOptions};
+    use std::collections::HashMap;
+
+    fn to_map(vals: impl IntoIterator<Item = Node>) -> HashMap<String, Option<Vec<u8>>> {
+        vals.into_iter().map(|n| (n.key, n.value)).collect()
+    }
+
+    #[async_std::test]
+    async fn basic_iter() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrie::ram().await?;
+        let mut nodes = trie
+            .batch_put(vec![("a", b"a"), ("b", b"b"), ("c", b"c")])
+            .await?;
+
+        let mut iter = trie.iter();
+        assert_eq!(to_map(nodes), to_map(iter.collect().await?));
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn iter_big_db() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrie::ram().await?;
+
+        let num = 1000;
+        let mut nodes = Vec::with_capacity(num);
+        for val in 0..num {
+            let key = format!("#{}", val);
+            let node = trie.put(key.clone(), key.as_bytes()).await?;
+            nodes.push(node);
+        }
+
+        let mut iter = trie.iter();
+        assert_eq!(to_map(nodes), to_map(iter.collect().await?));
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn prefix_basic_iter() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrie::ram().await?;
+
+        let nodes = trie
+            .batch_put(vec![
+                ("foo/a", b"foo/a"),
+                ("foo/b", b"foo/b"),
+                ("foo/c", b"foo/c"),
+            ])
+            .await?;
+
+        trie.batch_put(vec![("a", b"a"), ("b", b"b"), ("c", b"c")])
+            .await?;
+
+        let mut iter = trie.iter_with_options("foo");
+        assert_eq!(to_map(nodes), to_map(iter.collect().await?));
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn empty_prefix_iter() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrie::ram().await?;
+
+        trie.batch_put(vec![
+            ("foo/a", b"foo/a"),
+            ("foo/b", b"foo/b"),
+            ("foo/c", b"foo/c"),
+        ])
+        .await?;
+
+        let mut iter = trie.iter_with_options("bar");
+        assert_eq!(to_map(vec![]), to_map(iter.collect().await?));
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn non_recursive_iter() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrie::ram().await?;
+
+        for &val in &["a", "a/b/c/d", "a/c", "b", "b/b/c", "c/a", "c"] {
+            trie.put(val, val.as_bytes()).await?;
+        }
+
+        let mut iter = trie.iter_with_options(IteratorOpts::default().set_recursive(false));
+
+        let mut keys: Vec<_> = iter
+            .collect()
+            .await?
+            .into_iter()
+            .map(|n| n.key.split('/').next().unwrap().to_string())
+            .collect();
+        keys.sort();
+
+        assert_eq!(
+            vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            keys
+        );
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn mixed_iter() -> Result<(), Box<dyn std::error::Error>> {
+        let mut trie = HyperTrie::ram().await?;
+
+        let mut nodes = vec![];
+        for &val in &["a", "a/a", "a/b", "a/c", "a/a/a", "a/a/b", "a/a/c"] {
+            nodes.push(trie.put(val, val.as_bytes()).await?);
+        }
+
+        let mut iter = trie.iter();
+        assert_eq!(to_map(nodes), to_map(iter.collect().await?));
+
+        Ok(())
     }
 }
