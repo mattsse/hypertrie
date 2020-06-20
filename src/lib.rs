@@ -16,9 +16,9 @@ pub use crate::cmd::delete::{Delete, DeleteOptions};
 use crate::cmd::diff::DiffOptions;
 use crate::cmd::extension::HypertrieExtension;
 pub use crate::cmd::get::{Get, GetOptions};
-pub use crate::cmd::history::{History, HistoryOpts};
 pub use crate::cmd::put::{Put, PutOptions};
 pub use crate::cmd::TrieCommand;
+pub use crate::history::{History, HistoryOpts};
 use crate::hypertrie_proto as proto;
 use crate::iter::{HyperTrieIterator, IteratorOpts};
 pub use crate::node::Node;
@@ -28,6 +28,7 @@ mod hypertrie_proto {
 }
 
 pub mod cmd;
+pub mod history;
 mod hyperdrive;
 mod iter;
 mod mount;
