@@ -57,15 +57,18 @@ impl<T> HyperTrie<T>
 where
     T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
 {
+    #[inline]
     pub fn len(&self) -> u64 {
         self.feed.len()
     }
 
     /// Returns the db public key. You need to pass this to other instances you want to replicate with.
+    #[inline]
     pub fn key(&self) -> &PublicKey {
         self.feed.public_key()
     }
 
+    #[inline]
     pub fn feed(&self) -> &Feed<T> {
         &self.feed
     }
@@ -75,6 +78,7 @@ where
     }
 
     /// Returns the db discovery key. Can be used to find other db peers.
+    #[inline]
     pub fn discovery_key(&self) -> blake2_rfc::blake2b::Blake2bResult {
         discovery_key(self.key())
     }
@@ -82,6 +86,7 @@ where
     /// The current version of the trie.
     ///
     /// If no checkout is set, version equals to the amount of nodes in the storage feed.
+    #[inline]
     pub fn version(&self) -> u64 {
         if let Some(checkout) = self.checkout {
             checkout
@@ -102,11 +107,13 @@ where
     }
 
     /// Check out at the version specified.
+    #[inline]
     pub fn set_checkout(&mut self, version: u64) -> Option<u64> {
         self.checkout.replace(version)
     }
 
     /// Remove the checkout.
+    #[inline]
     pub fn remove_checkout(&mut self) -> Option<u64> {
         self.checkout.take()
     }
@@ -115,6 +122,7 @@ where
     async fn replicate(self) {}
 
     /// Same as checkout but just sets the latest version as a checkout.
+    #[inline]
     pub async fn snapshot(&mut self) -> Option<u64> {
         self.set_checkout(self.version())
     }
@@ -366,7 +374,16 @@ where
         Ok(())
     }
 
-    ///
+    /// Convenience method to use in Stream implementations
+    pub(crate) async fn get_by_seq_compat(
+        &mut self,
+        seq: u64,
+    ) -> (anyhow::Result<Option<Node>>, &mut Self) {
+        let node = self.get_by_seq(seq).await;
+        (node, self)
+    }
+
+    /// Return the node from the feed, where `seq` is the index of the feed. see also [`hypercore::Feed::get`].
     pub async fn get_by_seq(&mut self, seq: u64) -> anyhow::Result<Option<Node>> {
         if seq == 0 {
             // index 0 is always `Header`
@@ -394,6 +411,7 @@ where
     }
 
     /// The index of the latest node in the feed.
+    #[inline]
     pub fn head_seq(&self) -> u64 {
         if let Some(checkout) = self.checkout {
             if checkout > 0 {
@@ -416,49 +434,42 @@ where
         HyperTrieIterator::new(IteratorOpts::default(), self)
     }
 
-    /// Same as [`HyperTrie::history`] but with options.
-    ///
-    /// # Example
-    ///
-    /// History but in reverse order.
-    ///
-    /// ```
-    /// # #[async_std::main]
-    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut trie = hypertrie::HyperTrie::ram().await?;
-    /// let hello = trie.put("hello", b"world").await?;
-    /// let world = trie.put("world", b"hello").await?;
-    ///
-    /// let mut history = trie.history_with_opts(false);
-    /// let node = history.next().await.unwrap();
-    /// assert_eq!(node.unwrap(), world);
-    ///
-    /// let node = history.next().await.unwrap();
-    /// assert_eq!(node.unwrap(), hello);
-    ///
-    /// let node = history.next().await;
-    /// assert!(node.is_none());
-    /// # Ok(()) }
-    /// ```
-    pub fn history_with_opts(&mut self, opts: impl Into<HistoryOpts>) -> History<T> {
-        let opts = opts.into();
-        let lte = opts.lte.unwrap_or_else(|| self.head_seq());
-
-        History {
-            db: self,
-            lte,
-            gte: opts.gte,
-            reverse: opts.reverse,
-        }
-    }
+    // /// Same as [`HyperTrie::history`] but with options.
+    // ///
+    // /// # Example
+    // ///
+    // /// History but in reverse order.
+    // ///
+    // /// ```
+    // /// # #[async_std::main]
+    // /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // /// # use futures::StreamExt;
+    // /// let mut trie = hypertrie::HyperTrie::ram().await?;
+    // /// let hello = trie.put("hello", b"world").await?;
+    // /// let world = trie.put("world", b"hello").await?;
+    // ///
+    // /// let mut history = trie.history_with_opts(false);
+    // /// let node = history.next().await.unwrap();
+    // /// assert_eq!(node.unwrap(), world);
+    // ///
+    // /// let node = history.next().await.unwrap();
+    // /// assert_eq!(node.unwrap(), hello);
+    // ///
+    // /// let node = history.next().await;
+    // /// assert!(node.is_none());
+    // /// # Ok(()) }
+    // /// ```
+    // pub fn history_with_opts(&mut self, opts: impl Into<HistoryOpts>) -> History<T> {
+    //     let mut opts = opts.into();
+    //     if opts.lte.is_none() {
+    //         opts = opts.lte(self.head_seq());
+    //     }
+    //
+    //     History::new(opts, self)
+    // }
 
     pub fn history(&mut self) -> History<T> {
-        History {
-            lte: self.head_seq(),
-            db: self,
-            gte: 1,
-            reverse: false,
-        }
+        History::new(HistoryOpts::default().lte(self.head_seq()).gte(1), self)
     }
 }
 

@@ -1,5 +1,9 @@
 use std::fmt;
+use std::pin::Pin;
 
+use async_std::task::{Context, Poll};
+use futures::stream::Stream;
+use futures::{Future, FutureExt};
 use random_access_storage::RandomAccess;
 
 use crate::node::Node;
@@ -9,7 +13,9 @@ pub struct History<'a, T>
 where
     T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
 {
-    pub(crate) db: &'a mut HyperTrie<T>,
+    pub(crate) get_by_seq: Option<
+        Pin<Box<dyn Future<Output = (anyhow::Result<Option<Node>>, &'a mut HyperTrie<T>)> + 'a>>,
+    >,
     pub(crate) lte: u64,
     pub(crate) gte: u64,
     pub(crate) reverse: bool,
@@ -17,9 +23,25 @@ where
 
 impl<'a, T> History<'a, T>
 where
-    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send + Unpin,
+    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
 {
-    pub async fn next(&mut self) -> Option<anyhow::Result<Node>> {
+    pub fn new(opts: impl Into<HistoryOpts>, db: &'a mut HyperTrie<T>) -> Self {
+        let opts = opts.into();
+        let lte = opts.lte.unwrap_or(db.head_seq());
+
+        let mut hist = Self {
+            lte,
+            get_by_seq: None,
+            gte: opts.gte,
+            reverse: opts.reverse,
+        };
+        if let Some(seq) = hist.next_seq() {
+            hist.get_by_seq = Some(Box::pin(db.get_by_seq_compat(seq)));
+        }
+        hist
+    }
+
+    fn next_seq(&mut self) -> Option<u64> {
         if self.gte > self.lte {
             return None;
         }
@@ -33,11 +55,41 @@ where
             self.gte += 1;
             gte
         };
+        Some(seq)
+    }
+}
 
-        match self.db.get_by_seq(seq).await {
-            Ok(Some(node)) => Some(Ok(node)),
-            Ok(None) => None,
-            Err(e) => Some(Err(e)),
+impl<'a, T> Stream for History<'a, T>
+where
+    T: RandomAccess<Error = Box<dyn std::error::Error + Send + Sync>> + fmt::Debug + Send,
+{
+    type Item = anyhow::Result<Node>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Some(mut fut) = self.get_by_seq.take() {
+            match fut.poll_unpin(cx) {
+                Poll::Ready((Ok(Some(node)), db)) => {
+                    if let Some(seq) = self.next_seq() {
+                        let fut = db.get_by_seq_compat(seq);
+                        self.get_by_seq = Some(Box::pin(fut));
+                    }
+                    Poll::Ready(Some(Ok(node)))
+                }
+                Poll::Ready((Ok(None), db)) => Poll::Ready(None),
+                Poll::Ready((Err(err), db)) => {
+                    if let Some(seq) = self.next_seq() {
+                        let fut = db.get_by_seq_compat(seq);
+                        self.get_by_seq = Some(Box::pin(fut));
+                    }
+                    Poll::Ready(Some(Err(err)))
+                }
+                Poll::Pending => {
+                    self.get_by_seq = Some(fut);
+                    Poll::Pending
+                }
+            }
+        } else {
+            Poll::Ready(None)
         }
     }
 }
@@ -64,11 +116,6 @@ impl HistoryOpts {
         self.reverse = true;
         self
     }
-
-    pub fn set_reverse(mut self, reverse: bool) -> Self {
-        self.reverse = reverse;
-        self
-    }
 }
 
 impl Default for HistoryOpts {
@@ -81,15 +128,11 @@ impl Default for HistoryOpts {
     }
 }
 
-impl From<bool> for HistoryOpts {
-    fn from(_reverse: bool) -> Self {
-        HistoryOpts::default().reverse()
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::HyperTrie;
+    use futures::StreamExt;
+
+    use crate::{History, HistoryOpts, HyperTrie};
 
     #[async_std::test]
     async fn history() -> Result<(), Box<dyn std::error::Error>> {
@@ -124,7 +167,7 @@ mod tests {
 
         let hello = trie.put("hello", b"world").await?;
         let world = trie.put("world", b"hello").await?;
-        let mut history = trie.history_with_opts(false);
+        let mut history = History::new(HistoryOpts::default().reverse(), &mut trie);
 
         let node = history.next().await.unwrap();
         assert_eq!(node.unwrap(), world);
