@@ -279,7 +279,8 @@ fn hash_sip24<'a>(keys: impl Iterator<Item = &'a str>) -> Vec<u8> {
 
 #[inline]
 fn split_key(key: &str) -> impl Iterator<Item = &str> {
-    key.split('/')
+    // TODO the js version only removes an empty trailing and leading "" str
+    key.split('/').filter(|s| !s.is_empty())
 }
 
 #[cfg(test)]
